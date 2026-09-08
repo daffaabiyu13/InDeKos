@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar.jsx';
 import AddResidentModal from './components/AddResidentModal.jsx';
 import { Icons } from './components/icons.jsx';
 import { ToastProvider } from './components/Toast.jsx';
+import { ConfirmProvider } from './components/Confirm.jsx';
 import { api } from './api.js';
 
 import Dashboard from './pages/Dashboard.jsx';
@@ -84,6 +85,7 @@ export default function App() {
 
   return (
     <ToastProvider>
+      <ConfirmProvider>
       <Routes>
         <Route
           element={
@@ -114,6 +116,7 @@ export default function App() {
         availableRooms={availableRooms}
         onAdded={refresh}
       />
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

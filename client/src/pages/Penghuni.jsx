@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { avatarColor, initials } from '../helpers.js';
 import { Icons } from '../components/icons.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { useConfirm } from '../components/Confirm.jsx';
 
 const chips = [
   { f: 'all', label: 'Semua' },
@@ -17,6 +18,7 @@ export default function Penghuni({ version, onChange, openModal }) {
   const [list, setList] = useState([]);
   const [count, setCount] = useState(0);
   const toast = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     api.residents(q, filter).then(setList).catch(() => setList([]));
@@ -27,7 +29,15 @@ export default function Penghuni({ version, onChange, openModal }) {
   }, [version]);
 
   async function checkout(r) {
-    if (!window.confirm(`Proses keluar untuk ${r.name}? Data akan dipindah ke arsip mantan penghuni.`)) return;
+    const ok = await confirm({
+      title: 'Proses Keluar Penghuni',
+      icon: '🚪',
+      message: `Proses keluar untuk ${r.name}? Data akan dipindah ke arsip mantan penghuni.`,
+      confirmText: 'Ya, Proses Keluar',
+      cancelText: 'Batal',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.checkoutResident(r.id, { alasan: 'Keluar' });
       toast(`✅ ${r.name} dipindahkan ke arsip mantan penghuni.`);

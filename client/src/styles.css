@@ -143,6 +143,8 @@ a { color: inherit; text-decoration: none; }
 .btn-g { background: transparent; color: var(--t2); border: 1px solid var(--bdr); }
 .btn-g:hover { background: var(--surf2); color: var(--t1); }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-d { background: var(--err); color: #fff; }
+.btn-d:hover { background: #A8463B; }
 .notif-btn { position: relative; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--surf2); border: 1px solid var(--bdr); cursor: pointer; color: var(--t2); }
 .ndot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--jade); border: 2px solid var(--surf); }
 
@@ -322,6 +324,13 @@ select.fi { cursor: pointer; }
 .mc:hover { background: var(--surf2); }
 .mb2 { padding: 18px 22px; }
 .mf { padding: 14px 22px; border-top: 1px solid var(--bdr); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Confirm dialog ── */
+.confirm-modal { width: 420px; }
+.confirm-body { display: flex; align-items: flex-start; gap: 14px; }
+.confirm-icon { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--jade-bg); }
+.confirm-icon.danger { background: var(--err-bg); }
+.confirm-msg { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--t2); padding-top: 4px; }
 
 /* ── Loading / empty ── */
 .loading { padding: 40px; text-align: center; color: var(--t3); font-size: 13px; }
