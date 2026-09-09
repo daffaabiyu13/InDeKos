@@ -93,6 +93,95 @@ app.delete('/api/residents/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Applications (pendaftaran) ──
+// Public submit (from the prospective-tenant form).
+app.post('/api/applications', (req, res) => {
+  const b = req.body || {};
+  if (!b.name || !b.wa) {
+    return res.status(400).json({ error: 'Nama dan nomor WhatsApp wajib diisi.' });
+  }
+  const id = db.applications.reduce((m, a) => Math.max(m, a.id), 0) + 1;
+  const app_ = {
+    id,
+    name: b.name,
+    tempatLahir: b.tempatLahir || '',
+    tglLahir: b.tglLahir || '',
+    alamat: b.alamat || '',
+    nik: b.nik || '',
+    wa: b.wa,
+    job: b.job || 'Lainnya',
+    uni: b.uni || '',
+    wali: b.wali || '',
+    waliStatus: b.waliStatus || '',
+    waWali: b.waWali || '',
+    sumber: b.sumber || '',
+    masuk: b.masuk || '',
+    status: 'pending',
+    createdAt: new Date().toLocaleDateString('id-ID'),
+  };
+  db.applications.push(app_);
+  res.status(201).json({ ok: true, id });
+});
+
+// Admin: list applications (optionally filter by status).
+app.get('/api/applications', (req, res) => {
+  const { status } = req.query;
+  const list = status ? db.applications.filter((a) => a.status === status) : db.applications;
+  res.json(list);
+});
+
+// Admin: approve an application and assign a room → becomes an active resident.
+app.post('/api/applications/:id/approve', (req, res) => {
+  const a = db.applications.find((x) => x.id === Number(req.params.id));
+  if (!a) return res.status(404).json({ error: 'Pendaftaran tidak ditemukan.' });
+  if (a.status !== 'pending') return res.status(400).json({ error: 'Pendaftaran sudah diproses.' });
+
+  const room = String(req.body?.room || '').replace(/\D/g, '');
+  if (!room) return res.status(400).json({ error: 'Nomor kamar wajib dipilih.' });
+
+  const rooms = db.buildRooms();
+  const target = rooms.find((r) => String(r.n) === room);
+  if (!target) return res.status(400).json({ error: `Kamar ${room} tidak tersedia.` });
+  if (target.status === 'oc') return res.status(409).json({ error: `Kamar ${room} sudah terisi.` });
+
+  const id = db.residents.reduce((m, r) => Math.max(m, r.id), 0) + 1;
+  const resident = {
+    id,
+    name: a.name,
+    room,
+    masuk: a.masuk || new Date().toLocaleDateString('id-ID'),
+    status: 'tunggak', // penghuni baru belum membayar sewa pertama
+    job: a.job,
+    wa: a.wa,
+    uni: a.uni,
+  };
+  db.residents.push(resident);
+
+  // Buat tagihan awal & catat aktivitas.
+  db.payments.push({
+    name: a.name, room, period: 'Sep 2026', amount: 'Rp 1.300.000',
+    method: '—', date: '—', status: 'tunggak',
+  });
+  db.activities.unshift({
+    c: 'jade',
+    t: `<strong>${a.name}</strong> disetujui & ditempatkan di kamar ${room}`,
+    ts: 'Baru saja',
+  });
+
+  a.status = 'approved';
+  a.room = room;
+  res.json({ ok: true, resident });
+});
+
+// Admin: reject an application.
+app.post('/api/applications/:id/reject', (req, res) => {
+  const a = db.applications.find((x) => x.id === Number(req.params.id));
+  if (!a) return res.status(404).json({ error: 'Pendaftaran tidak ditemukan.' });
+  a.status = 'rejected';
+  a.reason = req.body?.reason || '';
+  res.json({ ok: true });
+});
+
 // ── Rooms ──
 app.get('/api/rooms', (_req, res) => res.json(db.buildRooms()));
 

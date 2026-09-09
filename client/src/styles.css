@@ -335,6 +335,29 @@ select.fi { cursor: pointer; }
 /* ── Loading / empty ── */
 .loading { padding: 40px; text-align: center; color: var(--t3); font-size: 13px; }
 
+/* ── Public registration form ── */
+.form-public { min-height: 100vh; background: linear-gradient(160deg, var(--forest) 0%, var(--forest-m) 55%, var(--jade) 140%); padding: 32px 16px; display: flex; justify-content: center; align-items: flex-start; }
+.fp-card { background: var(--surf); border-radius: 16px; box-shadow: var(--sh2); width: 100%; max-width: 640px; padding: 28px 30px 32px; }
+.fp-head { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid var(--bdr); margin-bottom: 20px; }
+.fp-logo { width: 44px; height: 44px; background: var(--jade); border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: #fff; letter-spacing: -1px; }
+.fp-brand { font-size: 20px; font-weight: 800; letter-spacing: -.4px; }
+.fp-brand em { color: var(--jade); font-style: normal; }
+.fp-kos { font-size: 12px; color: var(--t2); }
+.fp-intro h1 { font-size: 19px; font-weight: 800; letter-spacing: -.3px; margin-bottom: 4px; }
+.fp-intro p { font-size: 13px; color: var(--t2); margin-bottom: 18px; line-height: 1.55; }
+.fp-sec { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--jade-d); margin: 20px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--bdr); }
+.fp-sec:first-of-type { margin-top: 0; }
+.fp-alert { background: var(--err-bg); color: var(--err); font-size: 13px; font-weight: 600; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+.fp-submit { width: 100%; justify-content: center; padding: 11px; font-size: 14px; margin-top: 22px; }
+.fp-note { text-align: center; font-size: 11.5px; color: var(--t3); margin-top: 10px; }
+.fp-success { text-align: center; padding: 22px 8px 12px; }
+.fp-success-ico { font-size: 48px; margin-bottom: 10px; }
+.fp-success h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+.fp-success p { font-size: 13.5px; color: var(--t2); line-height: 1.6; margin-bottom: 22px; max-width: 460px; margin-left: auto; margin-right: auto; }
+
+/* ── Application detail grid (verify modal) ── */
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; background: var(--surf2); border: 1px solid var(--bdr); border-radius: 10px; padding: 14px 16px; }
+
 @media (max-width: 900px) {
   .g2 { grid-template-columns: 1fr; }
   .sg { grid-template-columns: repeat(2, 1fr); }

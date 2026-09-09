@@ -21,6 +21,7 @@ const groups = [
   {
     label: 'Administrasi',
     items: [
+      { to: '/pendaftaran', key: 'pendaftaran', label: 'Pendaftaran', dynamic: 'pending' },
       { to: '/pelanggaran', key: 'pelanggaran', label: 'Pelanggaran', badge: '2' },
       { to: '/mantan', key: 'mantan', label: 'Mantan Penghuni' },
     ],
@@ -35,7 +36,7 @@ const groups = [
   },
 ];
 
-export default function Sidebar({ collapsed, onToggle, kosName }) {
+export default function Sidebar({ collapsed, onToggle, kosName, pendingCount = 0 }) {
   return (
     <aside className="sb">
       <div className="sb-logo">
@@ -62,12 +63,13 @@ export default function Sidebar({ collapsed, onToggle, kosName }) {
             <span className="nav-label">{g.label}</span>
             {g.items.map((it) => {
               const Icon = Icons[it.key];
+              const badge = it.dynamic === 'pending' ? (pendingCount || null) : it.badge;
               return (
                 <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => `ni${isActive ? ' active' : ''}`}>
                   <Icon />
                   <span className="ni-lbl">
                     {it.label}
-                    {it.badge && <span className="nb">{it.badge}</span>}
+                    {badge && <span className="nb">{badge}</span>}
                   </span>
                   <span className="ni-tip">{it.label}</span>
                 </NavLink>

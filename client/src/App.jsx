@@ -17,12 +17,15 @@ import Pelanggaran from './pages/Pelanggaran.jsx';
 import Mantan from './pages/Mantan.jsx';
 import AIAnalisa from './pages/AIAnalisa.jsx';
 import Pengaturan from './pages/Pengaturan.jsx';
+import Pendaftaran from './pages/Pendaftaran.jsx';
+import FormPendaftaran from './pages/FormPendaftaran.jsx';
 
 const titles = {
   '/': ['Dashboard', 'Ringkasan Kos Elliptica · September 2026'],
   '/penghuni': ['Data Penghuni', '15 penghuni aktif · Kos Elliptica'],
   '/kamar': ['Manajemen Kamar', 'Kos Elliptica · 20 kamar total'],
   '/pembayaran': ['Pembayaran', 'September 2026'],
+  '/pendaftaran': ['Verifikasi Pendaftaran', 'Calon penghuni menunggu penempatan kamar'],
   '/keuangan': ['Keuangan', 'Laporan keuangan terpadu'],
   '/pengeluaran': ['Pengeluaran', 'Catatan pengeluaran operasional'],
   '/pelanggaran': ['Pelanggaran', '3 catatan aktif'],
@@ -31,7 +34,7 @@ const titles = {
   '/pengaturan': ['Pengaturan', 'Konfigurasi properti kos'],
 };
 
-function Layout({ collapsed, setCollapsed, openModal, kosName }) {
+function Layout({ collapsed, setCollapsed, openModal, kosName, pendingCount }) {
   const { pathname } = useLocation();
   const toast = useToast();
   const [title, sub] = titles[pathname] || ['InDeKos', ''];
@@ -41,6 +44,7 @@ function Layout({ collapsed, setCollapsed, openModal, kosName }) {
       <Sidebar
         collapsed={collapsed}
         kosName={kosName}
+        pendingCount={pendingCount}
         onToggle={() => {
           const next = !collapsed;
           setCollapsed(next);
@@ -74,6 +78,7 @@ export default function App() {
   const [version, setVersion] = useState(0); // bump to refetch after mutations
   const [availableRooms, setAvailableRooms] = useState([]);
   const [kosName, setKosName] = useState('Kos Elliptica');
+  const [pendingCount, setPendingCount] = useState(0);
 
   const refresh = () => setVersion((v) => v + 1);
 
@@ -82,12 +87,14 @@ export default function App() {
       setAvailableRooms(rooms.filter((r) => r.status === 'av').map((r) => r.n));
     }).catch(() => {});
     api.settings().then((s) => setKosName(s.namaKos)).catch(() => {});
+    api.applications('pending').then((a) => setPendingCount(a.length)).catch(() => {});
   }, [version]);
 
   return (
     <ToastProvider>
       <ConfirmProvider>
       <Routes>
+        <Route path="/form" element={<FormPendaftaran />} />
         <Route
           element={
             <Layout
@@ -95,6 +102,7 @@ export default function App() {
               setCollapsed={setCollapsed}
               openModal={() => setModalOpen(true)}
               kosName={kosName}
+              pendingCount={pendingCount}
             />
           }
         >
@@ -102,6 +110,7 @@ export default function App() {
           <Route path="penghuni" element={<Penghuni version={version} onChange={refresh} openModal={() => setModalOpen(true)} />} />
           <Route path="kamar" element={<Kamar version={version} />} />
           <Route path="pembayaran" element={<Pembayaran version={version} onChange={refresh} />} />
+          <Route path="pendaftaran" element={<Pendaftaran version={version} onChange={refresh} />} />
           <Route path="keuangan" element={<Keuangan version={version} />} />
           <Route path="pengeluaran" element={<Pengeluaran version={version} onChange={refresh} />} />
           <Route path="pelanggaran" element={<Pelanggaran version={version} onChange={refresh} />} />

@@ -27,6 +27,11 @@ export const api = {
 
   rooms: () => request('/rooms'),
 
+  applications: (status = 'pending') => request(`/applications?status=${status}`),
+  submitApplication: (data) => request('/applications', { method: 'POST', body: JSON.stringify(data) }),
+  approveApplication: (id, room) => request(`/applications/${id}/approve`, { method: 'POST', body: JSON.stringify({ room }) }),
+  rejectApplication: (id, reason) => request(`/applications/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
   payments: () => request('/payments'),
   markPaid: (data) => request('/payments/mark-paid', { method: 'POST', body: JSON.stringify(data) }),
 

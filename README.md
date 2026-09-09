@@ -64,8 +64,21 @@ npm start                 # Express menyajikan API + client build
 
 ## Modul
 
-Dashboard · Penghuni · Kamar · Pembayaran · Keuangan · Pengeluaran ·
-Pelanggaran · Mantan Penghuni · AI Analisa · Pengaturan.
+Dashboard · Penghuni · Kamar · Pembayaran · **Pendaftaran** · Keuangan ·
+Pengeluaran · Pelanggaran · Mantan Penghuni · AI Analisa · Pengaturan.
+
+## Alur Pendaftaran Penghuni
+
+1. Calon penghuni membuka **form publik** di `/form` (tanpa login) dan mengisi
+   data diri, kontak, wali, dsb.
+2. Data masuk ke antrian **Verifikasi Pendaftaran** (`/pendaftaran`) di panel
+   admin — muncul badge jumlah pendaftaran menunggu di sidebar.
+3. Admin membuka detail, memilih **nomor kamar yang tersedia**, lalu
+   **Setujui & Tempatkan** → calon penghuni otomatis menjadi penghuni aktif
+   (dengan tagihan awal), atau **Tolak** pendaftaran.
+
+Bagikan tautan `/form` ke calon penghuni; tombol "Salin Link Form" tersedia di
+halaman verifikasi.
 
 ## API Ringkas
 
@@ -75,6 +88,10 @@ Pelanggaran · Mantan Penghuni · AI Analisa · Pengaturan.
 | GET    | `/api/residents`              | Daftar penghuni (`?q=&filter=`)    |
 | POST   | `/api/residents`              | Tambah penghuni                    |
 | POST   | `/api/residents/:id/checkout` | Proses keluar → arsip mantan       |
+| POST   | `/api/applications`           | Kirim pendaftaran (form publik)    |
+| GET    | `/api/applications`           | Daftar pendaftaran (`?status=`)    |
+| POST   | `/api/applications/:id/approve` | Setujui & tempatkan ke kamar     |
+| POST   | `/api/applications/:id/reject`  | Tolak pendaftaran                |
 | GET    | `/api/rooms`                  | Denah & status kamar               |
 | GET    | `/api/payments`               | Riwayat pembayaran                 |
 | POST   | `/api/payments/mark-paid`     | Tandai lunas                       |

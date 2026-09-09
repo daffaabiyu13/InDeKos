@@ -29,6 +29,23 @@ export const settings = {
 6. Konflik antar penghuni diselesaikan melalui pengelola.`,
 };
 
+// Pendaftaran (applications) submitted from the public form.
+// status: 'pending' | 'approved' | 'rejected'
+export const applications = [
+  {
+    id: 1, name: 'Yoga Pratomo', tempatLahir: 'Kediri', tglLahir: '12/05/2003',
+    alamat: 'Jl. Melati No. 8, Kediri', nik: '3506121205030002', wa: '0857-1234-5678',
+    job: 'Mahasiswa', uni: 'POLINEMA', wali: 'Sutrisno', waliStatus: 'Ayah', waWali: '0857-0000-1111',
+    sumber: 'Instagram', masuk: '01/10/2026', status: 'pending', createdAt: '08/09/2026',
+  },
+  {
+    id: 2, name: 'Kevin Aditya', tempatLahir: 'Surabaya', tglLahir: '03/11/2002',
+    alamat: 'Jl. Kenanga No. 21, Surabaya', nik: '3578030311020003', wa: '0812-9999-8888',
+    job: 'Karyawan/Pegawai', uni: '', wali: 'Rahmawati', waliStatus: 'Ibu', waWali: '0812-2222-3333',
+    sumber: 'Rekomendasi teman/kenalan', masuk: '15/10/2026', status: 'pending', createdAt: '09/09/2026',
+  },
+];
+
 export const residents = [
   { id: 1, name: 'Daffa Abiyu', room: '101', masuk: '01/03/2026', status: 'lunas', job: 'Mahasiswa', wa: '0899-2732-6323', uni: 'POLINEMA' },
   { id: 2, name: 'Rizki Pratama', room: '102', masuk: '15/02/2026', status: 'lunas', job: 'Mahasiswa', wa: '0812-3456-7890', uni: 'UB' },
