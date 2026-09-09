@@ -35,6 +35,7 @@ export const api = {
 
   violations: () => request('/violations'),
   addViolation: (data) => request('/violations', { method: 'POST', body: JSON.stringify(data) }),
+  sendViolation: (data) => request('/violations/send', { method: 'POST', body: JSON.stringify(data) }),
 
   mantan: () => request('/mantan'),
   finance: () => request('/finance'),

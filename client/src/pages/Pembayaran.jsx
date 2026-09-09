@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useFetch } from '../useFetch.js';
-import { avatarColor, initials } from '../helpers.js';
+import { avatarColor, initials, downloadCSV, printReceipt, openWhatsApp } from '../helpers.js';
+import { Icons } from '../components/icons.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 export default function Pembayaran({ version, onChange }) {
@@ -9,14 +10,24 @@ export default function Pembayaran({ version, onChange }) {
   const { data: payments, loading } = useFetch(() => api.payments(), [version, localVer]);
   const toast = useToast();
 
-  async function markPaid(p) {
+  // "Catat Bayar" modal state
+  const [payOpen, setPayOpen] = useState(false);
+  const [payForm, setPayForm] = useState({ room: '', method: 'Tunai' });
+
+  // QRIS billing form state
+  const [billTarget, setBillTarget] = useState('');
+  const [billAmount, setBillAmount] = useState('Rp 1.300.000');
+
+  async function markPaid(room, method = 'Tunai') {
     try {
-      await api.markPaid({ room: p.room, method: 'Tunai' });
+      const p = await api.markPaid({ room, method });
       toast(`✅ Pembayaran ${p.name} ditandai lunas.`);
       setLocalVer((v) => v + 1);
       onChange?.();
+      return true;
     } catch (err) {
       toast(`⚠️ ${err.message}`);
+      return false;
     }
   }
 
@@ -24,6 +35,35 @@ export default function Pembayaran({ version, onChange }) {
 
   const paid = payments.filter((p) => p.status === 'lunas').length;
   const unpaid = payments.length - paid;
+  const unpaidList = payments.filter((p) => p.status !== 'lunas');
+
+  function exportCSV() {
+    downloadCSV(
+      'pembayaran-september-2026.csv',
+      payments.map((p) => ({
+        Penghuni: p.name, Kamar: p.room, Periode: p.period, Jumlah: p.amount,
+        Metode: p.method, 'Tgl Bayar': p.date, Status: p.status === 'lunas' ? 'Lunas' : 'Belum Bayar',
+      })),
+    );
+    toast('📄 Laporan pembayaran diexport (CSV).');
+  }
+
+  async function submitCatatBayar() {
+    if (!payForm.room) { toast('⚠️ Pilih penghuni terlebih dahulu.'); return; }
+    const ok = await markPaid(payForm.room, payForm.method);
+    if (ok) { setPayOpen(false); setPayForm({ room: '', method: 'Tunai' }); }
+  }
+
+  function kirimTagihan() {
+    if (!billTarget) { toast('⚠️ Pilih penghuni terlebih dahulu.'); return; }
+    const p = payments.find((x) => `${x.name} — Kamar ${x.room}` === billTarget);
+    const resWa = p?.wa || '';
+    openWhatsApp(
+      resWa,
+      `Halo ${p?.name || ''}, ini pengingat pembayaran sewa kamar ${p?.room || ''} sebesar ${billAmount} untuk periode ${p?.period || 'bulan ini'}. Terima kasih.`,
+    );
+    toast('📱 Membuka WhatsApp untuk mengirim tagihan…');
+  }
 
   return (
     <>
@@ -37,8 +77,8 @@ export default function Pembayaran({ version, onChange }) {
         <div className="ch">
           <div><div className="ct">Riwayat Pembayaran · September 2026</div></div>
           <div style={{ display: 'flex', gap: 7 }}>
-            <button className="btn btn-g btn-sm">Export</button>
-            <button className="btn btn-p btn-sm">+ Catat Bayar</button>
+            <button className="btn btn-g btn-sm" onClick={exportCSV}>Export</button>
+            <button className="btn btn-p btn-sm" onClick={() => setPayOpen(true)}>+ Catat Bayar</button>
           </div>
         </div>
         <div className="tw">
@@ -61,8 +101,8 @@ export default function Pembayaran({ version, onChange }) {
                   <td>{p.status === 'lunas' ? <span className="badge b-ok">Lunas</span> : <span className="badge b-err">Belum Bayar</span>}</td>
                   <td>
                     {p.status === 'lunas'
-                      ? <button className="btn btn-g btn-sm">📄 Struk</button>
-                      : <button className="btn btn-p btn-sm" onClick={() => markPaid(p)}>Tandai Lunas</button>}
+                      ? <button className="btn btn-g btn-sm" onClick={() => printReceipt(p)}>📄 Struk</button>
+                      : <button className="btn btn-p btn-sm" onClick={() => markPaid(p.room)}>Tandai Lunas</button>}
                   </td>
                 </tr>
               ))}
@@ -74,7 +114,7 @@ export default function Pembayaran({ version, onChange }) {
       <div className="card">
         <div className="ch">
           <div><div className="ct">Pembayaran QRIS</div><div className="cs">Kirim tagihan atau tampilkan QR langsung ke penghuni</div></div>
-          <button className="btn btn-p btn-sm">Generate QRIS</button>
+          <button className="btn btn-p btn-sm" onClick={() => toast('🔳 QRIS aktif — tampilkan kode di bawah ke penghuni.')}>Generate QRIS</button>
         </div>
         <div className="cb">
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -101,19 +141,54 @@ export default function Pembayaran({ version, onChange }) {
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Kirim Tagihan ke Penghuni</div>
               <div className="fg">
                 <label className="fl">Pilih Penghuni</label>
-                <select className="fi">
-                  <option>Pilih penghuni...</option>
-                  {payments.filter((p) => p.status !== 'lunas').map((p, i) => (
+                <select className="fi" value={billTarget} onChange={(e) => setBillTarget(e.target.value)}>
+                  <option value="">Pilih penghuni...</option>
+                  {unpaidList.map((p, i) => (
                     <option key={i}>{p.name} — Kamar {p.room}</option>
                   ))}
                 </select>
               </div>
-              <div className="fg"><label className="fl">Nominal</label><input className="fi" defaultValue="Rp 1.300.000" /></div>
-              <button className="btn btn-p">📱 Kirim via WhatsApp</button>
+              <div className="fg"><label className="fl">Nominal</label><input className="fi" value={billAmount} onChange={(e) => setBillAmount(e.target.value)} /></div>
+              <button className="btn btn-p" onClick={kirimTagihan}>📱 Kirim via WhatsApp</button>
             </div>
           </div>
         </div>
       </div>
+
+      {payOpen && (
+        <div className="mo open" onClick={(e) => e.target === e.currentTarget && setPayOpen(false)}>
+          <div className="modal" style={{ width: 420 }}>
+            <div className="mh">
+              <div className="mt">Catat Pembayaran</div>
+              <button className="mc" onClick={() => setPayOpen(false)}><Icons.close /></button>
+            </div>
+            <div className="mb2">
+              <div className="fg">
+                <label className="fl">Penghuni (belum bayar) <span className="req">*</span></label>
+                <select className="fi" value={payForm.room} onChange={(e) => setPayForm((f) => ({ ...f, room: e.target.value }))}>
+                  <option value="">Pilih penghuni...</option>
+                  {unpaidList.map((p, i) => (
+                    <option key={i} value={p.room}>{p.name} — Kamar {p.room}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="fg" style={{ marginBottom: 0 }}>
+                <label className="fl">Metode Pembayaran</label>
+                <select className="fi" value={payForm.method} onChange={(e) => setPayForm((f) => ({ ...f, method: e.target.value }))}>
+                  <option>Tunai</option><option>Transfer</option><option>QRIS</option>
+                </select>
+              </div>
+              {unpaidList.length === 0 && (
+                <p style={{ fontSize: 12.5, color: 'var(--ok)', marginTop: 12 }}>✓ Semua penghuni sudah lunas bulan ini.</p>
+              )}
+            </div>
+            <div className="mf">
+              <button className="btn btn-g" onClick={() => setPayOpen(false)}>Batal</button>
+              <button className="btn btn-p" onClick={submitCatatBayar}>Tandai Lunas</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

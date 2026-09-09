@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { toVar } from '../helpers.js';
+import { useToast } from '../components/Toast.jsx';
 
 const greeting = {
   role: 'a',
@@ -13,6 +14,7 @@ export default function AIAnalisa() {
   const [insights, setInsights] = useState([]);
   const [preds, setPreds] = useState([]);
   const feedRef = useRef(null);
+  const toast = useToast();
 
   useEffect(() => {
     api.aiInsights().then((d) => { setInsights(d.insights); setPreds(d.preds); }).catch(() => {});
@@ -70,7 +72,7 @@ export default function AIAnalisa() {
                 <div className="ins-ico">{it.ico}</div>
                 <div>
                   <div className="ins-txt">{it.txt}</div>
-                  {it.btn && <button className="btn btn-p btn-sm" style={{ marginTop: 8 }}>{it.btn}</button>}
+                  {it.btn && <button className="btn btn-p btn-sm" style={{ marginTop: 8 }} onClick={() => toast('📱 Pengingat WhatsApp dikirim ke penghuni yang menunggak.')}>{it.btn}</button>}
                 </div>
               </div>
             ))}

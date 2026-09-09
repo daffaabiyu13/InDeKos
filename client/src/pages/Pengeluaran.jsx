@@ -59,7 +59,7 @@ export default function Pengeluaran({ version, onChange }) {
                   <td className="tn">{e.desc}</td>
                   <td><span className="badge b-neu">{e.cat}</span></td>
                   <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--err)' }}>{e.amount}</td>
-                  <td><button className="btn btn-g btn-sm">📎 Lihat</button></td>
+                  <td><button className="btn btn-g btn-sm" onClick={() => toast('📎 Belum ada bukti/foto nota terlampir untuk transaksi ini.')}>📎 Lihat</button></td>
                 </tr>
               ))}
             </tbody>

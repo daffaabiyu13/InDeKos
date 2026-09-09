@@ -132,6 +132,14 @@ app.post('/api/expenses', (req, res) => {
 // ── Violations ──
 app.get('/api/violations', (_req, res) => res.json(db.violations));
 
+app.post('/api/violations/send', (req, res) => {
+  const { name, date } = req.body || {};
+  const v = db.violations.find((x) => x.name === name && x.date === date);
+  if (!v) return res.status(404).json({ error: 'Pelanggaran tidak ditemukan.' });
+  v.sent = true;
+  res.json(v);
+});
+
 app.post('/api/violations', (req, res) => {
   const body = req.body || {};
   const v = {

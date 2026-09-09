@@ -1,8 +1,10 @@
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useFetch } from '../useFetch.js';
 import { toVar } from '../helpers.js';
 
 export default function Keuangan({ version }) {
+  const nav = useNavigate();
   const { data, loading } = useFetch(() => api.finance(), [version]);
   if (loading || !data) return <div className="loading">Memuat data keuangan…</div>;
 
@@ -20,7 +22,7 @@ export default function Keuangan({ version }) {
 
       <div className="g2">
         <div className="card">
-          <div className="ch"><div className="ct">Transaksi Terbaru</div><button className="btn btn-g btn-sm">+ Catat</button></div>
+          <div className="ch"><div className="ct">Transaksi Terbaru</div><button className="btn btn-g btn-sm" onClick={() => nav('/pengeluaran')}>+ Catat</button></div>
           <div className="cb" style={{ paddingTop: 0, paddingBottom: 0 }}>
             <div>
               {transactions.map((t, i) => (

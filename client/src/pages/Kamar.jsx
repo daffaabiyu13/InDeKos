@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useFetch } from '../useFetch.js';
-import { avatarColor, initials } from '../helpers.js';
+import { avatarColor, initials, openWhatsApp } from '../helpers.js';
+import { useToast } from '../components/Toast.jsx';
 
 export default function Kamar({ version }) {
   const { data: rooms, loading } = useFetch(() => api.rooms(), [version]);
   const [selected, setSelected] = useState(null);
   const [filter, setFilter] = useState('all');
+  const toast = useToast();
 
   const counts = useMemo(() => {
     const r = rooms || [];
@@ -28,7 +30,7 @@ export default function Kamar({ version }) {
         <div className={`chip${filter === 'all' ? ' on' : ''}`} onClick={() => setFilter('all')}>Semua ({counts.all})</div>
         <div className={`chip${filter === 'av' ? ' on' : ''}`} onClick={() => setFilter('av')}>Tersedia ({counts.av})</div>
         <div className={`chip${filter === 'oc' ? ' on' : ''}`} onClick={() => setFilter('oc')}>Terisi ({counts.oc})</div>
-        <div style={{ marginLeft: 'auto' }}><button className="btn btn-g btn-sm">Atur Fasilitas</button></div>
+        <div style={{ marginLeft: 'auto' }}><button className="btn btn-g btn-sm" onClick={() => toast('🛠️ Pengaturan fasilitas kamar dapat diatur di menu Pengaturan.')}>Atur Fasilitas</button></div>
       </div>
 
       <div className="g2">
@@ -64,7 +66,16 @@ export default function Kamar({ version }) {
                   <Row label="Fasilitas" value="AC, Lemari, Kasur" />
                   <Row label="Lantai" value={room.n < 111 ? '1' : '2'} />
                 </div>
-                <button className="btn btn-p" style={{ marginTop: 16, width: '100%' }}>Pasarkan Kamar Ini</button>
+                <button
+                  className="btn btn-p"
+                  style={{ marginTop: 16, width: '100%' }}
+                  onClick={() => {
+                    openWhatsApp('', `Tersedia kamar kos! Kamar ${room.n} — Rp 1.300.000/bln, fasilitas AC, lemari, kasur. Hubungi kami untuk info lebih lanjut.`);
+                    toast('📣 Membuka WhatsApp untuk membagikan info kamar…');
+                  }}
+                >
+                  Pasarkan Kamar Ini
+                </button>
               </>
             )}
             {room && room.status === 'oc' && (
@@ -82,8 +93,8 @@ export default function Kamar({ version }) {
                   <Row label="Sewa" value="Rp 1.300.000/bln" bold />
                 </div>
                 <div style={{ display: 'flex', gap: 7, marginTop: 14 }}>
-                  <button className="btn btn-g btn-sm" style={{ flex: 1 }}>Detail Lengkap</button>
-                  <button className="btn btn-p btn-sm" style={{ flex: 1 }}>Hubungi WA</button>
+                  <button className="btn btn-g btn-sm" style={{ flex: 1 }} onClick={() => toast(`ℹ️ ${room.res?.name} · Kamar ${room.n} · ${room.res?.job || '—'} · Masuk ${room.res?.masuk || '—'}`)}>Detail Lengkap</button>
+                  <button className="btn btn-p btn-sm" style={{ flex: 1 }} onClick={() => openWhatsApp(room.res?.wa, `Halo ${room.res?.name}, ini pesan dari pengelola kos.`)}>Hubungi WA</button>
                 </div>
               </>
             )}

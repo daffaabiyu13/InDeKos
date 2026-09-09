@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
-import { avatarColor, initials } from '../helpers.js';
+import { avatarColor, initials, openWhatsApp } from '../helpers.js';
 import { Icons } from '../components/icons.jsx';
 import { useToast } from '../components/Toast.jsx';
 import { useConfirm } from '../components/Confirm.jsx';
@@ -88,7 +88,12 @@ export default function Penghuni({ version, onChange, openModal }) {
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-g btn-sm" onClick={() => checkout(r)}>Keluar</button>
-                      <button className="btn btn-g btn-sm">WA</button>
+                      <button
+                        className="btn btn-g btn-sm"
+                        onClick={() => openWhatsApp(r.wa, `Halo ${r.name}, ini pesan dari pengelola kos.`)}
+                      >
+                        WA
+                      </button>
                     </div>
                   </td>
                 </tr>

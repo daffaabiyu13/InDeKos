@@ -3,7 +3,7 @@ import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar.jsx';
 import AddResidentModal from './components/AddResidentModal.jsx';
 import { Icons } from './components/icons.jsx';
-import { ToastProvider } from './components/Toast.jsx';
+import { ToastProvider, useToast } from './components/Toast.jsx';
 import { ConfirmProvider } from './components/Confirm.jsx';
 import { api } from './api.js';
 
@@ -33,6 +33,7 @@ const titles = {
 
 function Layout({ collapsed, setCollapsed, openModal, kosName }) {
   const { pathname } = useLocation();
+  const toast = useToast();
   const [title, sub] = titles[pathname] || ['InDeKos', ''];
 
   return (
@@ -53,7 +54,7 @@ function Layout({ collapsed, setCollapsed, openModal, kosName }) {
             <div className="tb-sub">{sub}</div>
           </div>
           <div className="tb-r">
-            <div className="notif-btn"><Icons.bell /><div className="ndot" /></div>
+            <button className="notif-btn" onClick={() => toast('🔔 3 tagihan menunggak · 2 pelanggaran aktif memerlukan tindak lanjut.')} title="Notifikasi"><Icons.bell /><div className="ndot" /></button>
             <button className="btn btn-p btn-sm" onClick={openModal}>+ Tambah Penghuni</button>
           </div>
         </header>

@@ -14,6 +14,17 @@ export default function Pelanggaran({ version, onChange }) {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  async function sendEmail(v) {
+    try {
+      await api.sendViolation({ name: v.name, date: v.date });
+      toast(`✅ Surat Peringatan ${v.sp} terkirim ke ${v.name}.`);
+      setLocalVer((n) => n + 1);
+      onChange?.();
+    } catch (err) {
+      toast(`⚠️ ${err.message}`);
+    }
+  }
+
   async function submit() {
     if (!form.name || !form.desc) {
       toast('⚠️ Nama dan deskripsi wajib diisi.');
@@ -66,8 +77,8 @@ export default function Pelanggaran({ version, onChange }) {
                   <td>{v.sent ? <span className="badge b-ok">Terkirim</span> : <span className="badge b-warn">Belum</span>}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {!v.sent && <button className="btn btn-p btn-sm">Kirim Email {v.sp}</button>}
-                      <button className="btn btn-g btn-sm">Detail</button>
+                      {!v.sent && <button className="btn btn-p btn-sm" onClick={() => sendEmail(v)}>Kirim Email {v.sp}</button>}
+                      <button className="btn btn-g btn-sm" onClick={() => toast(`ℹ️ ${v.name} (Kamar ${v.room}) — ${v.desc} · ${v.date} · ${v.sp}`)}>Detail</button>
                     </div>
                   </td>
                 </tr>
