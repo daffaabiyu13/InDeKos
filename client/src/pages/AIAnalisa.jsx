@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { toVar } from '../helpers.js';
 import { useToast } from '../components/Toast.jsx';
-
-const greeting = {
-  role: 'a',
-  html: 'Halo! Saya AI InDeKos. Data <strong>Kos Elliptica</strong> sudah dimuat — 15 penghuni aktif, 20 kamar, riwayat keuangan Jan–Sep 2026.<br /><br />Coba tanya:<br />• "Siapa yang paling sering terlambat bayar?"<br />• "Tren hunian 6 bulan terakhir?"<br />• "Rata-rata lama tinggal penghuni?"',
-};
+import { useSettings } from '../components/Settings.jsx';
 
 export default function AIAnalisa() {
+  const { kosName } = useSettings();
+  const greeting = {
+    role: 'a',
+    html: `Halo! Saya AI InDeKos. Data <strong>${kosName}</strong> sudah dimuat — 15 penghuni aktif, 20 kamar, riwayat keuangan Jan–Sep 2026.<br /><br />Coba tanya:<br />• "Siapa yang paling sering terlambat bayar?"<br />• "Tren hunian 6 bulan terakhir?"<br />• "Rata-rata lama tinggal penghuni?"`,
+  };
   const [messages, setMessages] = useState([greeting]);
   const [input, setInput] = useState('');
   const [insights, setInsights] = useState([]);
@@ -41,7 +42,7 @@ export default function AIAnalisa() {
     <>
       <div className="card mb">
         <div className="ch">
-          <div><div className="ct">🤖 AI Analisa InDeKos</div><div className="cs">Tanya tentang penghuni, keuangan, dan tren hunian Kos Elliptica</div></div>
+          <div><div className="ct">🤖 AI Analisa InDeKos</div><div className="cs">Tanya tentang penghuni, keuangan, dan tren hunian {kosName}</div></div>
           <span className="badge b-ok">● Online</span>
         </div>
         <div className="aic">

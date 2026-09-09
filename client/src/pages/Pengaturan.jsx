@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { Icons } from '../components/icons.jsx';
 import { useToast } from '../components/Toast.jsx';
+import { useSettings } from '../components/Settings.jsx';
 
 const DEFAULTS = {
   namaKos: 'Kos Elliptica',
@@ -39,6 +40,7 @@ export default function Pengaturan({ onSaved }) {
   const [s, setS] = useState(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const toast = useToast();
+  const { reload } = useSettings();
 
   useEffect(() => {
     api.settings().then((data) => { setS({ ...DEFAULTS, ...data }); setLoaded(true); }).catch(() => setLoaded(true));
@@ -51,6 +53,7 @@ export default function Pengaturan({ onSaved }) {
     try {
       await api.saveSettings(s);
       toast('✅ Pengaturan berhasil disimpan!');
+      reload();
       onSaved?.();
     } catch (err) {
       toast(`⚠️ ${err.message}`);

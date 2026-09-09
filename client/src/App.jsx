@@ -5,6 +5,7 @@ import AddResidentModal from './components/AddResidentModal.jsx';
 import { Icons } from './components/icons.jsx';
 import { ToastProvider, useToast } from './components/Toast.jsx';
 import { ConfirmProvider } from './components/Confirm.jsx';
+import { SettingsProvider, useSettings } from './components/Settings.jsx';
 import { api } from './api.js';
 
 import Dashboard from './pages/Dashboard.jsx';
@@ -20,24 +21,27 @@ import Pengaturan from './pages/Pengaturan.jsx';
 import Pendaftaran from './pages/Pendaftaran.jsx';
 import FormPendaftaran from './pages/FormPendaftaran.jsx';
 
-const titles = {
-  '/': ['Dashboard', 'Ringkasan Kos Elliptica · September 2026'],
-  '/penghuni': ['Data Penghuni', '15 penghuni aktif · Kos Elliptica'],
-  '/kamar': ['Manajemen Kamar', 'Kos Elliptica · 20 kamar total'],
-  '/pembayaran': ['Pembayaran', 'September 2026'],
-  '/pendaftaran': ['Verifikasi Pendaftaran', 'Calon penghuni menunggu penempatan kamar'],
-  '/keuangan': ['Keuangan', 'Laporan keuangan terpadu'],
-  '/pengeluaran': ['Pengeluaran', 'Catatan pengeluaran operasional'],
-  '/pelanggaran': ['Pelanggaran', '3 catatan aktif'],
-  '/mantan': ['Mantan Penghuni', '38 data alumni kos'],
-  '/ai': ['AI Analisa', 'Powered by InDeKos AI'],
-  '/pengaturan': ['Pengaturan', 'Konfigurasi properti kos'],
-};
+function buildTitles(kosName) {
+  return {
+    '/': ['Dashboard', `Ringkasan ${kosName} · September 2026`],
+    '/penghuni': ['Data Penghuni', `15 penghuni aktif · ${kosName}`],
+    '/kamar': ['Manajemen Kamar', `${kosName} · 20 kamar total`],
+    '/pembayaran': ['Pembayaran', 'September 2026'],
+    '/pendaftaran': ['Verifikasi Pendaftaran', 'Calon penghuni menunggu penempatan kamar'],
+    '/keuangan': ['Keuangan', 'Laporan keuangan terpadu'],
+    '/pengeluaran': ['Pengeluaran', 'Catatan pengeluaran operasional'],
+    '/pelanggaran': ['Pelanggaran', '3 catatan aktif'],
+    '/mantan': ['Mantan Penghuni', '38 data alumni kos'],
+    '/ai': ['AI Analisa', 'Powered by InDeKos AI'],
+    '/pengaturan': ['Pengaturan', 'Konfigurasi properti kos'],
+  };
+}
 
-function Layout({ collapsed, setCollapsed, openModal, kosName, pendingCount }) {
+function Layout({ collapsed, setCollapsed, openModal, pendingCount }) {
   const { pathname } = useLocation();
   const toast = useToast();
-  const [title, sub] = titles[pathname] || ['InDeKos', ''];
+  const { kosName } = useSettings();
+  const [title, sub] = buildTitles(kosName)[pathname] || ['InDeKos', ''];
 
   return (
     <div className={`app${collapsed ? ' sb-c' : ''}`}>
@@ -77,7 +81,6 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [version, setVersion] = useState(0); // bump to refetch after mutations
   const [availableRooms, setAvailableRooms] = useState([]);
-  const [kosName, setKosName] = useState('Kos Elliptica');
   const [pendingCount, setPendingCount] = useState(0);
 
   const refresh = () => setVersion((v) => v + 1);
@@ -86,12 +89,12 @@ export default function App() {
     api.rooms().then((rooms) => {
       setAvailableRooms(rooms.filter((r) => r.status === 'av').map((r) => r.n));
     }).catch(() => {});
-    api.settings().then((s) => setKosName(s.namaKos)).catch(() => {});
     api.applications('pending').then((a) => setPendingCount(a.length)).catch(() => {});
   }, [version]);
 
   return (
     <ToastProvider>
+      <SettingsProvider>
       <ConfirmProvider>
       <Routes>
         <Route path="/form" element={<FormPendaftaran />} />
@@ -101,7 +104,6 @@ export default function App() {
               collapsed={collapsed}
               setCollapsed={setCollapsed}
               openModal={() => setModalOpen(true)}
-              kosName={kosName}
               pendingCount={pendingCount}
             />
           }
@@ -127,6 +129,7 @@ export default function App() {
         onAdded={refresh}
       />
       </ConfirmProvider>
+      </SettingsProvider>
     </ToastProvider>
   );
 }
