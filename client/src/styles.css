@@ -74,7 +74,11 @@ a { color: inherit; text-decoration: none; }
 .sb-tog:hover { background: rgba(64, 78, 59, .08); color: var(--t1); }
 .sb-tog svg { width: 15px; height: 15px; transition: transform var(--tr); }
 
-.sb-nav { flex: 1; padding: 12px 8px; overflow: hidden; }
+.sb-nav { flex: 1; min-height: 0; padding: 12px 8px; overflow-y: auto; overflow-x: hidden; }
+.sb-nav::-webkit-scrollbar { width: 5px; }
+.sb-nav::-webkit-scrollbar-track { background: transparent; }
+.sb-nav::-webkit-scrollbar-thumb { background: var(--bdr); border-radius: 3px; }
+.sb-nav:hover::-webkit-scrollbar-thumb { background: var(--sage); }
 .nav-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--t3); padding: 8px 10px 5px; margin-top: 4px; display: block; white-space: nowrap; overflow: hidden; transition: opacity var(--tr), max-height var(--tr); }
 .ni { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 9px; color: var(--t2); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .13s, color .13s, padding var(--tr); margin-bottom: 1px; user-select: none; border: none; background: none; width: 100%; text-align: left; position: relative; white-space: nowrap; }
 .ni:hover { background: rgba(64, 78, 59, .07); color: var(--t1); }
