@@ -77,6 +77,14 @@ db.exec(`
   );
 `);
 
+// Lightweight migrations: add columns introduced after initial release.
+function ensureColumn(table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('payments', 'note', "note TEXT DEFAULT ''");
+ensureColumn('payments', 'confirmedAt', "confirmedAt TEXT DEFAULT ''");
+
 // node:sqlite's DatabaseSync has no .transaction() helper (unlike
 // better-sqlite3), so wrap units of work in BEGIN/COMMIT manually.
 function tx(fn) {
@@ -266,6 +274,35 @@ export function markPaid(room, method = 'Tunai', date) {
       .run('lunas', method, paidDate, p.id);
     db.prepare('UPDATE residents SET status=? WHERE room=?').run('lunas', String(room));
   });
+  return db.prepare('SELECT * FROM payments WHERE id = ?').get(p.id);
+}
+
+// Find an outstanding bill for a tenant (by room; name optional cross-check).
+export function getBill(room, name) {
+  const p = db.prepare('SELECT * FROM payments WHERE room = ?').get(String(room));
+  if (!p) return null;
+  if (name && p.name && p.name.toLowerCase() !== String(name).toLowerCase()) return null;
+  return p;
+}
+
+// Tenant self-service confirmation → bill moves to 'menunggu' (awaiting admin verify).
+export function confirmPayment(room, { note = '', method = 'QRIS' } = {}) {
+  const p = db.prepare('SELECT * FROM payments WHERE room = ?').get(String(room));
+  if (!p) return null;
+  db.prepare('UPDATE payments SET status=?, method=?, note=?, confirmedAt=? WHERE id=?')
+    .run('menunggu', method, note, new Date().toLocaleString('id-ID'), p.id);
+  return db.prepare('SELECT * FROM payments WHERE id = ?').get(p.id);
+}
+
+export function listPendingPayments() {
+  return db.prepare("SELECT * FROM payments WHERE status = 'menunggu' ORDER BY id ASC").all();
+}
+
+// Admin rejects a claimed payment → back to arrears.
+export function rejectConfirm(room) {
+  const p = db.prepare('SELECT * FROM payments WHERE room = ?').get(String(room));
+  if (!p) return null;
+  db.prepare("UPDATE payments SET status='tunggak', method='—', note='' WHERE id=?").run(p.id);
   return db.prepare('SELECT * FROM payments WHERE id = ?').get(p.id);
 }
 

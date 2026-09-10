@@ -22,6 +22,9 @@ const DEFAULTS = {
   jamTamu: '21:00',
   pet: 'tidak',
   peraturan: '',
+  paymentMode: 'manual',
+  qrisString: '',
+  midtransServerKey: '',
 };
 
 const typeNotes = {
@@ -157,6 +160,43 @@ export default function Pengaturan({ onSaved }) {
                 <option value="sesuai">Sesuai tanggal masuk</option>
               </select>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card mb">
+        <div className="ch"><div><div className="ct">Pembayaran</div><div className="cs">Metode pembayaran & konfigurasi QRIS untuk halaman /bayar</div></div></div>
+        <div className="cb">
+          <div className="fg">
+            <label className="fl">Metode Pembayaran</label>
+            <select className="fi" value={s.paymentMode} onChange={set('paymentMode')}>
+              <option value="manual">Manual (admin catat sendiri)</option>
+              <option value="qris_static">QRIS Statis (GoPay Merchant / dll) — generate QR dinamis</option>
+              <option value="midtrans" disabled>Midtrans (otomatis penuh) — segera hadir</option>
+            </select>
+          </div>
+
+          {s.paymentMode === 'qris_static' && (
+            <div className="fg">
+              <label className="fl">Payload QRIS Statis</label>
+              <textarea
+                className="fi" rows="4" style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: 12 }}
+                placeholder="Tempel string QRIS statis di sini (hasil decode gambar QR merchant Anda, diawali 00020101...)"
+                value={s.qrisString} onChange={set('qrisString')}
+              />
+              <div style={{ fontSize: 11.5, color: 'var(--t2)', marginTop: 6, lineHeight: 1.5 }}>
+                Dapatkan string ini dengan men-decode gambar QRIS merchant Anda (mis. lewat pemindai QR online).
+                Aplikasi akan otomatis membuat QR dinamis ber-nominal untuk tiap tagihan. Uang tetap masuk ke akun Anda.
+              </div>
+            </div>
+          )}
+
+          <div className="fg" style={{ marginBottom: 0 }}>
+            <label className="fl">Midtrans Server Key <span style={{ color: 'var(--t3)', fontWeight: 500 }}>(opsional, untuk otomatis penuh nanti)</span></label>
+            <input
+              className="fi" placeholder="SB-Mid-server-xxxx (isi saat upgrade ke Midtrans)"
+              value={s.midtransServerKey} onChange={set('midtransServerKey')}
+            />
           </div>
         </div>
       </div>

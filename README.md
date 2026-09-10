@@ -81,6 +81,31 @@ Pengeluaran · Pelanggaran · Mantan Penghuni · AI Analisa · Pengaturan.
 Bagikan tautan `/form` ke calon penghuni; tombol "Salin Link Form" tersedia di
 halaman verifikasi.
 
+## Alur Pembayaran (Jalur A — QRIS statis + konfirmasi)
+
+Dirancang untuk pemilik yang memakai **QRIS statis merchant** (mis. GoPay
+Merchant) dan penghuni yang hanya mengakses halaman publik.
+
+1. Admin memilih metode **QRIS Statis** di **Pengaturan → Pembayaran** dan
+   menempelkan **payload QRIS statis** miliknya (hasil decode gambar QR).
+2. Penghuni membuka **halaman publik `/bayar`** (tanpa login), memasukkan
+   nama + nomor kamar, lalu melihat tagihan. Aplikasi **membuat QRIS dinamis**
+   dari QRIS statis admin + **nominal unik** (ekor 3 digit dari nomor kamar,
+   memudahkan rekonsiliasi). Uang tetap masuk ke akun merchant admin.
+3. Penghuni membayar via QRIS (GoPay/OVO/DANA/ShopeePay/m-banking), lalu
+   menekan **"Saya Sudah Bayar"** → tagihan masuk antrian.
+4. Admin membuka **Pembayaran → Menunggu Konfirmasi** → **Verifikasi** (jadi
+   Lunas) atau **Tolak** (kembali menunggak).
+
+**Upgrade ke Jalur B (Midtrans — otomatis penuh):** endpoint
+`POST /api/payments/webhook` & kolom konfigurasi *Midtrans Server Key* sudah
+disiapkan. Saat punya akun Midtrans, callback-nya diarahkan ke server → langkah
+4 menjadi otomatis tanpa verifikasi manual.
+
+> Konversi QRIS statis→dinamis mengikuti standar EMVCo (`server/src/qris.js`):
+> ubah tag `01` (statis→dinamis), sisipkan tag `54` (nominal), hitung ulang
+> `63` (CRC16-CCITT). Hanya berlaku untuk QRIS milik Anda sendiri.
+
 ## API Ringkas
 
 | Method | Endpoint                      | Keterangan                         |

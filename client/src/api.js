@@ -35,6 +35,13 @@ export const api = {
   payments: () => request('/payments'),
   markPaid: (data) => request('/payments/mark-paid', { method: 'POST', body: JSON.stringify(data) }),
 
+  // Public payment flow (Jalur A)
+  bill: (name, room) => request(`/payments/bill?name=${encodeURIComponent(name)}&room=${encodeURIComponent(room)}`),
+  confirmPayment: (data) => request('/payments/confirm', { method: 'POST', body: JSON.stringify(data) }),
+  pendingPayments: () => request('/payments/pending'),
+  verifyPayment: (data) => request('/payments/verify', { method: 'POST', body: JSON.stringify(data) }),
+  rejectConfirm: (data) => request('/payments/reject-confirm', { method: 'POST', body: JSON.stringify(data) }),
+
   expenses: () => request('/expenses'),
   addExpense: (data) => request('/expenses', { method: 'POST', body: JSON.stringify(data) }),
 

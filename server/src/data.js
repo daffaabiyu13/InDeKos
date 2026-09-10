@@ -21,6 +21,10 @@ export const settings = {
   pricePrem: '1.700.000',
   deposit: '500.000',
   dueDate: '15',
+  // Pembayaran: 'manual' | 'qris_static' | 'midtrans'
+  paymentMode: 'manual',
+  qrisString: '', // payload QRIS statis (mis. GoPay Merchant) — diisi admin
+  midtransServerKey: '', // untuk upgrade ke Jalur B (Midtrans) nanti
   jamMalam: '23:00',
   jamTamu: '21:00',
   pet: 'tidak',

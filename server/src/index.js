@@ -9,8 +9,16 @@ import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import QRCode from 'qrcode';
 import * as store from './store.js';
+import { generateDynamicQris, isValidQris } from './qris.js';
 import { revenues, transactions, expCats, insights, preds, aiKnowledge } from './data.js';
+
+// ── Rupiah helpers ──
+const parseRupiah = (s) => parseInt(String(s).replace(/\D/g, ''), 10) || 0;
+const formatRupiah = (n) => `Rp ${Number(n).toLocaleString('id-ID')}`;
+// Nominal unik per kamar (ekor 3 digit) untuk memudahkan rekonsiliasi.
+const uniqueAmount = (base, room) => base + (parseInt(String(room).replace(/\D/g, ''), 10) % 1000);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -115,6 +123,93 @@ app.post('/api/payments/mark-paid', (req, res) => {
   const p = store.markPaid(room, method, date);
   if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
   res.json(p);
+});
+
+// ── Public payment (Jalur A: QRIS statis → dinamis + konfirmasi semi-otomatis) ──
+
+// Tenant mencari tagihannya (tanpa login) dan menerima QRIS dinamis.
+app.get('/api/payments/bill', async (req, res) => {
+  const { name = '', room = '' } = req.query;
+  if (!room) return res.status(400).json({ error: 'Nomor kamar wajib diisi.' });
+
+  const bill = store.getBill(room, name);
+  if (!bill) return res.status(404).json({ error: 'Tagihan tidak ditemukan. Periksa nama & nomor kamar.' });
+
+  const s = store.getSettings();
+  const base = parseRupiah(bill.amount);
+  const amountValue = uniqueAmount(base, room);
+
+  const out = {
+    name: bill.name,
+    room: bill.room,
+    period: bill.period,
+    status: bill.status, // lunas | tunggak | menunggu
+    baseAmount: formatRupiah(base),
+    amount: formatRupiah(amountValue),
+    amountValue,
+    paymentMode: s.paymentMode || 'manual',
+    kosName: s.namaKos,
+    qrImage: null,
+  };
+
+  // Bila admin sudah mengonfigurasi QRIS statis, buat QR dinamis ber-nominal.
+  if (out.status !== 'lunas' && (s.paymentMode === 'qris_static') && isValidQris(s.qrisString)) {
+    try {
+      const payload = generateDynamicQris(s.qrisString, amountValue);
+      out.qrImage = await QRCode.toDataURL(payload, { margin: 1, width: 320 });
+    } catch {
+      out.qrImage = null;
+    }
+  }
+  res.json(out);
+});
+
+// Tenant menyatakan sudah membayar → masuk antrian konfirmasi admin.
+app.post('/api/payments/confirm', (req, res) => {
+  const { room, method = 'QRIS', note = '' } = req.body || {};
+  const p = store.confirmPayment(room, { method, note });
+  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
+  res.json({ ok: true });
+});
+
+// Admin: daftar pembayaran menunggu konfirmasi.
+app.get('/api/payments/pending', (_req, res) => res.json(store.listPendingPayments()));
+
+// Admin: verifikasi → tercatat lunas.
+app.post('/api/payments/verify', (req, res) => {
+  const { room, method = 'QRIS' } = req.body || {};
+  const p = store.markPaid(room, method);
+  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
+  res.json(p);
+});
+
+// Admin: tolak klaim pembayaran → kembali menunggak.
+app.post('/api/payments/reject-confirm', (req, res) => {
+  const p = store.rejectConfirm(req.body?.room);
+  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
+  res.json({ ok: true });
+});
+
+// Webhook untuk Jalur B (Midtrans). Aktif hanya bila Server Key sudah diisi.
+// Mencocokkan pembayaran berdasarkan NOMINAL UNIK lalu menandai lunas otomatis.
+// Catatan: verifikasi signature Midtrans ditambahkan saat integrasi penuh.
+app.post('/api/payments/webhook', (req, res) => {
+  const s = store.getSettings();
+  if (!s.midtransServerKey) {
+    return res.status(503).json({ error: 'Midtrans belum dikonfigurasi.' });
+  }
+  const body = req.body || {};
+  const status = body.transaction_status;
+  const gross = Math.round(Number(body.gross_amount) || 0);
+  if (!['settlement', 'capture'].includes(status)) {
+    return res.json({ ok: true, ignored: status });
+  }
+  const match = store.listPayments().find(
+    (p) => p.status !== 'lunas' && uniqueAmount(parseRupiah(p.amount), p.room) === gross,
+  );
+  if (!match) return res.status(404).json({ error: 'Tagihan cocok tidak ditemukan.' });
+  const paid = store.markPaid(match.room, 'QRIS (Midtrans)');
+  res.json({ ok: true, room: paid.room });
 });
 
 // ── Expenses ──

@@ -8,6 +8,7 @@ import { useToast } from '../components/Toast.jsx';
 export default function Pembayaran({ version, onChange }) {
   const [localVer, setLocalVer] = useState(0);
   const { data: payments, loading } = useFetch(() => api.payments(), [version, localVer]);
+  const { data: pending } = useFetch(() => api.pendingPayments(), [version, localVer]);
   const toast = useToast();
 
   // "Catat Bayar" modal state
@@ -31,11 +32,36 @@ export default function Pembayaran({ version, onChange }) {
     }
   }
 
+  async function verify(room) {
+    try {
+      const p = await api.verifyPayment({ room });
+      toast(`✅ Pembayaran ${p.name} diverifikasi & tercatat lunas.`);
+      setLocalVer((v) => v + 1);
+      onChange?.();
+    } catch (err) { toast(`⚠️ ${err.message}`); }
+  }
+
+  async function rejectConfirm(room, name) {
+    try {
+      await api.rejectConfirm({ room });
+      toast(`Klaim pembayaran ${name} ditolak, dikembalikan ke menunggak.`);
+      setLocalVer((v) => v + 1);
+      onChange?.();
+    } catch (err) { toast(`⚠️ ${err.message}`); }
+  }
+
+  function shareBayar() {
+    const url = `${window.location.origin}/bayar`;
+    navigator.clipboard?.writeText(url);
+    toast('🔗 Link pembayaran disalin. Bagikan ke penghuni.');
+  }
+
   if (loading || !payments) return <div className="loading">Memuat pembayaran…</div>;
 
   const paid = payments.filter((p) => p.status === 'lunas').length;
-  const unpaid = payments.length - paid;
+  const unpaid = payments.filter((p) => p.status === 'tunggak').length;
   const unpaidList = payments.filter((p) => p.status !== 'lunas');
+  const pendingList = pending || [];
 
   function exportCSV() {
     downloadCSV(
@@ -73,6 +99,50 @@ export default function Pembayaran({ version, onChange }) {
         <div className="tile"><div className="tile-lbl">Belum Bayar</div><div className="tile-val warn">{unpaid}</div><div className="tile-ch dn">jatuh tempo terlewat</div></div>
       </div>
 
+      <div className="fr">
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 7 }}>
+          <button className="btn btn-g btn-sm" onClick={shareBayar}>Salin Link /bayar</button>
+          <button className="btn btn-p btn-sm" onClick={() => window.open('/bayar', '_blank')}>Buka Halaman Bayar</button>
+        </div>
+      </div>
+
+      {pendingList.length > 0 && (
+        <div className="card mb" style={{ borderColor: 'var(--warn)' }}>
+          <div className="ch">
+            <div><div className="ct">⏳ Menunggu Konfirmasi <span className="badge b-warn" style={{ marginLeft: 6 }}>{pendingList.length}</span></div><div className="cs">Pembayaran yang dilaporkan penghuni via halaman /bayar</div></div>
+          </div>
+          <div className="tw">
+            <table>
+              <thead><tr><th>Penghuni</th><th>Kamar</th><th>Periode</th><th>Jumlah</th><th>Metode</th><th>Catatan</th><th>Dilaporkan</th><th>Aksi</th></tr></thead>
+              <tbody>
+                {pendingList.map((p, i) => (
+                  <tr key={i}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="av" style={{ background: avatarColor(p.name), color: '#fff', width: 26, height: 26, fontSize: 10 }}>{initials(p.name)}</div>
+                        <span className="tn">{p.name}</span>
+                      </div>
+                    </td>
+                    <td><span className="badge b-neu">{p.room}</span></td>
+                    <td className="tm">{p.period}</td>
+                    <td style={{ fontWeight: 700 }}>{p.amount}</td>
+                    <td className="tm">{p.method}</td>
+                    <td className="tm" style={{ maxWidth: 160 }}>{p.note || '—'}</td>
+                    <td className="tm">{p.confirmedAt || '—'}</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn btn-p btn-sm" onClick={() => verify(p.room)}>Verifikasi</button>
+                        <button className="btn btn-d btn-sm" onClick={() => rejectConfirm(p.room, p.name)}>Tolak</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="card mb">
         <div className="ch">
           <div><div className="ct">Riwayat Pembayaran · September 2026</div></div>
@@ -98,7 +168,7 @@ export default function Pembayaran({ version, onChange }) {
                   <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{p.amount}</td>
                   <td className="tm">{p.method}</td>
                   <td className="tm">{p.date}</td>
-                  <td>{p.status === 'lunas' ? <span className="badge b-ok">Lunas</span> : <span className="badge b-err">Belum Bayar</span>}</td>
+                  <td>{p.status === 'lunas' ? <span className="badge b-ok">Lunas</span> : p.status === 'menunggu' ? <span className="badge b-warn">Menunggu</span> : <span className="badge b-err">Belum Bayar</span>}</td>
                   <td>
                     {p.status === 'lunas'
                       ? <button className="btn btn-g btn-sm" onClick={() => printReceipt(p)}>📄 Struk</button>

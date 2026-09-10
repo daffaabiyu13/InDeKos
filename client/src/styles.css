@@ -359,6 +359,16 @@ select.fi { cursor: pointer; }
 .fp-success h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
 .fp-success p { font-size: 13.5px; color: var(--t2); line-height: 1.6; margin-bottom: 22px; max-width: 460px; margin-left: auto; margin-right: auto; }
 
+/* ── Public payment page ── */
+.pay-bill { background: var(--surf2); border: 1px solid var(--bdr); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+.pay-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; padding: 6px 0; color: var(--t2); }
+.pay-row strong { color: var(--t1); }
+.pay-total { border-top: 1px dashed var(--bdr); margin-top: 6px; padding-top: 10px; font-size: 15px; }
+.pay-total strong { color: var(--jade-d); font-size: 18px; font-variant-numeric: tabular-nums; }
+.pay-qr { text-align: center; margin-bottom: 8px; }
+.pay-qr img { border: 1px solid var(--bdr); border-radius: 12px; padding: 8px; background: #fff; width: 240px; height: 240px; }
+.pay-qr-cap { font-size: 11.5px; color: var(--t3); margin-top: 8px; max-width: 300px; margin-left: auto; margin-right: auto; line-height: 1.5; }
+
 /* ── Application detail grid (verify modal) ── */
 .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; background: var(--surf2); border: 1px solid var(--bdr); border-radius: 10px; padding: 14px 16px; }
 

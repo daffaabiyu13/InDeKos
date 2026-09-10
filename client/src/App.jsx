@@ -20,6 +20,7 @@ import AIAnalisa from './pages/AIAnalisa.jsx';
 import Pengaturan from './pages/Pengaturan.jsx';
 import Pendaftaran from './pages/Pendaftaran.jsx';
 import FormPendaftaran from './pages/FormPendaftaran.jsx';
+import Bayar from './pages/Bayar.jsx';
 
 function buildTitles(kosName) {
   return {
@@ -98,6 +99,7 @@ export default function App() {
       <ConfirmProvider>
       <Routes>
         <Route path="/form" element={<FormPendaftaran />} />
+        <Route path="/bayar" element={<Bayar />} />
         <Route
           element={
             <Layout
