@@ -1,7 +1,10 @@
 // ─────────────────────────────────────────────────────────────
-// InDeKos — seed data (in-memory store)
-// Mirrors the dataset from the original prototype. In v1.0 this
-// lives in memory; v2.0 will migrate to a relational database.
+// InDeKos — seed data & static analytics
+// The mutable entities below (settings, residents, applications,
+// payments, expenses, violations, mantan, activities) are used by
+// store.js only to SEED the SQLite database on first run.
+// The analytics mocks (revenues, transactions, expCats, insights,
+// preds, aiKnowledge) are read-only and served directly.
 // ─────────────────────────────────────────────────────────────
 
 export const settings = {
@@ -147,14 +150,3 @@ export const aiKnowledge = {
   kosong: '5 kamar tersedia: 104, 107, 112, 116, 120. Berdasarkan tren historis, kamar biasanya terisi 2–3 minggu setelah dipromosikan. Kamar 104 baru selesai renovasi.',
   default: 'Saya bisa bantu analisa pola pembayaran, tren hunian, atau profil penghuni. Coba tanya lebih spesifik — misalnya nama penghuni, bulan tertentu, atau topik keuangan.',
 };
-
-// Rooms are derived from residents so the two never drift apart.
-export function buildRooms() {
-  const total = settings.totalKamar;
-  const start = settings.roomStart;
-  return Array.from({ length: total }, (_, i) => {
-    const n = start + i;
-    const res = residents.find((r) => r.room === String(n));
-    return { n, status: res ? 'oc' : 'av', res: res || null };
-  });
-}

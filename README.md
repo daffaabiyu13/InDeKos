@@ -23,10 +23,11 @@ Seluruh antarmuka menggunakan palet yang diminta:
 
 ```
 InDeKos/
-├── server/            # API Node.js + Express (in-memory store)
+├── server/            # API Node.js + Express (SQLite)
 │   └── src/
 │       ├── index.js   # routes & bootstrap
-│       └── data.js    # seed data
+│       ├── store.js   # SQLite repository (node:sqlite)
+│       └── data.js    # seed data & analytics mock
 └── client/            # SPA React + Vite
     └── src/
         ├── App.jsx        # shell + routing
@@ -38,7 +39,7 @@ InDeKos/
 
 ## Menjalankan (Development)
 
-Butuh Node.js 18+ (dikembangkan pada Node 22).
+Butuh **Node.js 22.5+** (memakai modul SQLite bawaan `node:sqlite`).
 
 ```bash
 # 1. Pasang semua dependency
@@ -103,5 +104,19 @@ halaman verifikasi.
 | GET    | `/api/ai/insights`            | Insight & prediksi                 |
 | POST   | `/api/ai/chat`                | Chat AI (mock)                     |
 
-> Catatan: data disimpan **in-memory** (reset saat server restart), sesuai
-> lingkup v1.0. Migrasi ke database relasional direncanakan untuk v2.0.
+## Database
+
+Data tersimpan di **SQLite** melalui modul bawaan Node `node:sqlite` — tanpa
+dependensi native, tanpa server DB terpisah. File database dibuat otomatis di
+`server/data/indekos.db` saat pertama dijalankan dan **diisi seed** bila kosong,
+lalu data **bertahan meski server di-restart**.
+
+- Lokasi file dapat diubah lewat env `DB_PATH` (mis. `DB_PATH=:memory:` untuk
+  mode sementara / testing).
+- Entitas yang dipersistensi: pengaturan, penghuni, pendaftaran, pembayaran,
+  pengeluaran, pelanggaran, mantan penghuni, dan aktivitas.
+- Data analitik (grafik pendapatan, insight AI, dsb.) masih berupa mock statis
+  di `data.js`.
+
+Untuk mereset ke data awal, hapus file `server/data/indekos.db*` lalu jalankan
+ulang server.
