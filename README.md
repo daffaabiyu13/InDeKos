@@ -1,15 +1,11 @@
 # InDeKos — Sistem Manajemen Kos Digital
 
-Aplikasi manajemen kos berbasis web (React + Node.js) untuk membantu pemilik
-dan pengelola kos mendigitalkan operasional: data penghuni, kamar, pembayaran,
-keuangan, pengeluaran, pelanggaran, arsip mantan penghuni, dan AI insight.
-
-Implementasi ini adalah versi **full‑stack** dari prototipe InDeKos: UI React
-(SPA) yang mengambil data dari REST API Node.js/Express.
+Aplikasi manajemen kos berbasis web (React + Node.js): penghuni, kamar & tipe
+kamar, penagihan per kamar, promo, charge & denda, pengeluaran (termasuk scan
+struk), pelanggaran, pendaftaran & keluar penghuni, reminder WhatsApp, serta
+kalender penagihan yang tersinkron ke Google Calendar.
 
 ## Palet Warna — "Jade pebble morning"
-
-Seluruh antarmuka menggunakan palet yang diminta:
 
 | Token   | Hex       | Penggunaan                          |
 | ------- | --------- | ----------------------------------- |
@@ -19,129 +15,144 @@ Seluruh antarmuka menggunakan palet yang diminta:
 | Sage    | `#BAC8B1` | Hijau lembut / elemen pendukung     |
 | Stone   | `#E6E6E6` | Netral abu-abu / border             |
 
+Status kamar: **terisi = hijau**, **kosong = merah**, **perbaikan = kuning**.
+
+## Menjalankan
+
+Butuh **Node.js 22.5+** (memakai SQLite bawaan `node:sqlite`).
+
+```bash
+npm run install:all
+npm run dev:server        # API  → http://localhost:4000
+npm run dev:client        # SPA  → http://localhost:5173 (proxy /api ke server)
+
+npm test                  # semua test (server: API + WhatsApp/Google mock, client: parser struk)
+
+npm run build && npm start   # produksi: Express menyajikan API + hasil build
+```
+
+### Login
+
+| Peran       | Username  | Password awal | Akses |
+| ----------- | --------- | ------------- | ----- |
+| **Pemilik** | `pemilik` | `pemilik123`  | Semua fitur + Pengaturan, harga/tipe kamar, promo, akun pengguna, integrasi |
+| **Admin**   | `admin`   | `admin123`    | Operasional harian (penghuni, tagihan, pengeluaran, pelanggaran, pendaftaran) |
+
+> ⚠️ **Segera ganti password** di menu **Akun**. Password awal bisa diatur lewat
+> env `INIT_PEMILIK_PASSWORD` / `INIT_ADMIN_PASSWORD` sebelum server pertama kali
+> dijalankan. Pemilik dapat menambah/menghapus pengguna di menu Akun.
+
+### Halaman untuk penghuni (tanpa login)
+
+| URL                   | Fungsi |
+| --------------------- | ------ |
+| `/form`               | Pendaftaran calon penghuni (data diri, **2 kontak darurat**, **foto KTP**, **foto selfie** + verifikasi wajah otomatis) |
+| `/bayar`              | Cek semua tagihan terbuka (nama + nomor kamar) |
+| `/invoice/:id`        | Invoice (link dikirim via WA): QRIS dinamis, "Saya sudah bayar", cetak/PDF |
+| `/keluar`             | Form keluar: tanggal keluar, alasan, rating, rekening pengembalian deposit |
+
+## Konfigurasi (env server)
+
+| Variabel | Default | Keterangan |
+| -------- | ------- | ---------- |
+| `PORT` | `4000` | Port API |
+| `DATA_DIR` | `server/data` | Lokasi database & folder `uploads/` (foto KTP/selfie/struk) |
+| `AUTH_SECRET` | acak, disimpan di DB | Kunci penandatangan token login |
+| `APP_TZ` | `Asia/Jakarta` | Zona waktu penentuan "hari ini" untuk penagihan |
+| `INIT_PEMILIK_PASSWORD` / `INIT_ADMIN_PASSWORD` | `pemilik123` / `admin123` | Password akun awal |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | Wajib untuk sinkron Google Calendar |
+| `GOOGLE_REDIRECT_URI` | `http://localhost:4000/api/gcal/callback` | Redirect OAuth (harus sama dengan di Google Cloud) |
+| `DISABLE_SCHEDULER` | — | Matikan job 30-menitan (untuk test) |
+
+Token WhatsApp, Midtrans Server Key, dan refresh token Google **disimpan di
+server dan tidak pernah dikirim ke browser**.
+
+## Penagihan
+
+- **Jatuh tempo per kamar** — tiap penghuni punya tanggal jatuh tempo sendiri
+  (default = tanggal masuk). Periode sewa = tgl jatuh tempo s/d sehari sebelum
+  jatuh tempo berikutnya. Invoice terbit otomatis H-7 (bisa diubah).
+- **Rate harian (opsional, per penghuni)** — hari di luar periode penuh (masuk
+  atau keluar di tengah periode) ditagih per hari, sehingga tidak ada hari yang
+  tidak terbayar. Jika nonaktif, hari tersebut tidak ditagih.
+- **Menunggak sampai tanggal tertentu** — atur *Tangguhkan s/d* di detail
+  penghuni. Invoice **tetap terbit per bulan** (menunggak Mei s/d Juni = tetap
+  2 invoice), status tampil "Ditangguhkan" dan reminder ditahan.
+- **Promo** (mis. bayar 6 bln + gratis 1) — dibuat & di-on/off pemilik, punya
+  periode berlaku. Saat diterapkan ke penghuni: satu invoice gabungan menutup
+  6+1 periode; invoice bulanan di rentang itu dibatalkan; setelah promo habis
+  tagihan **otomatis kembali normal**.
+- **Charge & denda** — invoice terpisah, sekali atau bulanan, tanggal tagih
+  bebas per kamar, bisa ditambahkan kapan saja (mis. watt berlebih).
+- **Kode unik** — setiap invoice mendapat kode 1–999 agar pembayaran QRIS/transfer
+  mudah dicocokkan.
+
+## WhatsApp otomatis (Fonnte / Wablas)
+
+1. Buat akun di [Fonnte](https://fonnte.com) atau Wablas, sambungkan nomor WA, salin token.
+2. **Pengaturan → WhatsApp Otomatis**: pilih gateway, tempel token (Wablas: isi
+   juga URL server), isi *URL publik aplikasi* (untuk link invoice), Simpan, lalu **Kirim Tes**.
+3. Atur toggle:
+   - **Reminder sebelum jatuh tempo** (default H-3, on/off global & per penghuni)
+   - **Kirim invoice otomatis saat terbit** (on/off)
+
+Scheduler berjalan tiap 30 menit. Setiap pesan dicatat (Pembayaran → Notifikasi WA)
+dan tidak pernah terkirim dua kali. Tanpa gateway, tombol **Kirim** membuka wa.me manual.
+
+## Google Calendar
+
+1. Google Cloud Console → buat project → aktifkan **Google Calendar API**.
+2. Buat **OAuth client ID** (tipe *Web application*), tambahkan redirect URI
+   `http://localhost:4000/api/gcal/callback` (atau domain Anda).
+3. Set `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`, restart server.
+4. Login sebagai pemilik → **Pengaturan → Google Calendar → Hubungkan Akun Google**.
+
+Setiap tagihan menjadi event sepanjang hari di tanggal jatuh tempo (merah =
+belum bayar, kuning = menunggu verifikasi, hijau ✅ = lunas; dibatalkan = event
+dihapus) dengan pengingat H-3. Kalender internal ada di **Pembayaran → Kalender Penagihan**.
+
+## Verifikasi wajah & scan struk
+
+- **Wajah KTP ↔ selfie** memakai `@vladmandic/face-api` **di browser** (model
+  disajikan dari server sendiri, tanpa CDN). Hasilnya berupa skor kemiripan
+  untuk *screening*; admin dapat **cek ulang di perangkatnya** dan tetap
+  memutuskan dengan membandingkan kedua foto. Ini bukan verifikasi biometrik resmi.
+- **Scan struk** memakai Tesseract.js di browser (bahasa Indonesia + Inggris;
+  pertama kali mengunduh data bahasa dari CDN). Total, tanggal, toko, dan
+  kategori diisi otomatis dan tetap bisa diedit sebelum disimpan.
+
+## Pelanggaran
+
+Kategori bisa ditambah sendiri (tingkat ringan/sedang/berat + SP default).
+Riwayat disimpan **1 tahun** (bisa diubah) lalu **dihapus otomatis** dari database.
+
+## Pembayaran QRIS
+
+Pemilik dengan **QRIS statis merchant** (mis. GoPay Merchant) menempelkan payload
+QRIS di Pengaturan; halaman invoice membuat **QRIS dinamis** (nominal + kode unik)
+sesuai standar EMVCo (`server/src/qris.js`). Penghuni menekan "Saya sudah bayar",
+admin memverifikasi. Endpoint `POST /api/payments/webhook` sudah disiapkan untuk
+upgrade ke **Midtrans** (otomatis penuh) — pencocokan via total nominal + kode unik.
+
 ## Struktur Proyek
 
 ```
-InDeKos/
-├── server/            # API Node.js + Express (SQLite)
-│   └── src/
-│       ├── index.js   # routes & bootstrap
-│       ├── store.js   # SQLite repository (node:sqlite)
-│       └── data.js    # seed data & analytics mock
-└── client/            # SPA React + Vite
-    └── src/
-        ├── App.jsx        # shell + routing
-        ├── api.js         # klien fetch
-        ├── styles.css     # design tokens (palet baru)
-        ├── components/    # Sidebar, Topbar, Modal, Toast, ikon
-        └── pages/         # 10 modul
+server/src/
+  index.js     routes + scheduler        billing.js   mesin penagihan
+  db.js        skema SQLite v2 & seed    auth.js      login, peran, akun
+  repo.js      rooms/residents/dashboard notify.js    WhatsApp gateway & reminder
+  settings.js  setting (rahasia di-mask) gcal.js      Google Calendar sync
+  uploads.js   foto (validasi magic byte) qris.js     QRIS statis → dinamis
+server/test/   api.test.mjs, integration.test.mjs, run.mjs
+client/src/
+  pages/       Dashboard, Penghuni, ResidentDetail, Kamar, Pembayaran, ...
+               publik: FormPendaftaran, Bayar, InvoicePublic, FormKeluar, Login
+  faceVerify.js, ocr.js, receiptParser.js
 ```
 
-## Menjalankan (Development)
+## Database & upgrade
 
-Butuh **Node.js 22.5+** (memakai modul SQLite bawaan `node:sqlite`).
-
-```bash
-# 1. Pasang semua dependency
-npm run install:all
-
-# 2. Jalankan API (terminal 1)
-npm run dev:server        # http://localhost:4000
-
-# 3. Jalankan SPA (terminal 2)
-npm run dev:client        # http://localhost:5173
-```
-
-Vite dev server mem-proxy `/api` ke backend, jadi cukup buka
-`http://localhost:5173`.
-
-## Menjalankan (Production)
-
-```bash
-npm run build             # build client → client/dist
-npm start                 # Express menyajikan API + client build
-# buka http://localhost:4000
-```
-
-## Modul
-
-Dashboard · Penghuni · Kamar · Pembayaran · **Pendaftaran** · Keuangan ·
-Pengeluaran · Pelanggaran · Mantan Penghuni · AI Analisa · Pengaturan.
-
-## Alur Pendaftaran Penghuni
-
-1. Calon penghuni membuka **form publik** di `/form` (tanpa login) dan mengisi
-   data diri, kontak, wali, dsb.
-2. Data masuk ke antrian **Verifikasi Pendaftaran** (`/pendaftaran`) di panel
-   admin — muncul badge jumlah pendaftaran menunggu di sidebar.
-3. Admin membuka detail, memilih **nomor kamar yang tersedia**, lalu
-   **Setujui & Tempatkan** → calon penghuni otomatis menjadi penghuni aktif
-   (dengan tagihan awal), atau **Tolak** pendaftaran.
-
-Bagikan tautan `/form` ke calon penghuni; tombol "Salin Link Form" tersedia di
-halaman verifikasi.
-
-## Alur Pembayaran (Jalur A — QRIS statis + konfirmasi)
-
-Dirancang untuk pemilik yang memakai **QRIS statis merchant** (mis. GoPay
-Merchant) dan penghuni yang hanya mengakses halaman publik.
-
-1. Admin memilih metode **QRIS Statis** di **Pengaturan → Pembayaran** dan
-   menempelkan **payload QRIS statis** miliknya (hasil decode gambar QR).
-2. Penghuni membuka **halaman publik `/bayar`** (tanpa login), memasukkan
-   nama + nomor kamar, lalu melihat tagihan. Aplikasi **membuat QRIS dinamis**
-   dari QRIS statis admin + **nominal unik** (ekor 3 digit dari nomor kamar,
-   memudahkan rekonsiliasi). Uang tetap masuk ke akun merchant admin.
-3. Penghuni membayar via QRIS (GoPay/OVO/DANA/ShopeePay/m-banking), lalu
-   menekan **"Saya Sudah Bayar"** → tagihan masuk antrian.
-4. Admin membuka **Pembayaran → Menunggu Konfirmasi** → **Verifikasi** (jadi
-   Lunas) atau **Tolak** (kembali menunggak).
-
-**Upgrade ke Jalur B (Midtrans — otomatis penuh):** endpoint
-`POST /api/payments/webhook` & kolom konfigurasi *Midtrans Server Key* sudah
-disiapkan. Saat punya akun Midtrans, callback-nya diarahkan ke server → langkah
-4 menjadi otomatis tanpa verifikasi manual.
-
-> Konversi QRIS statis→dinamis mengikuti standar EMVCo (`server/src/qris.js`):
-> ubah tag `01` (statis→dinamis), sisipkan tag `54` (nominal), hitung ulang
-> `63` (CRC16-CCITT). Hanya berlaku untuk QRIS milik Anda sendiri.
-
-## API Ringkas
-
-| Method | Endpoint                      | Keterangan                         |
-| ------ | ----------------------------- | ---------------------------------- |
-| GET    | `/api/dashboard`              | Ringkasan & statistik              |
-| GET    | `/api/residents`              | Daftar penghuni (`?q=&filter=`)    |
-| POST   | `/api/residents`              | Tambah penghuni                    |
-| POST   | `/api/residents/:id/checkout` | Proses keluar → arsip mantan       |
-| POST   | `/api/applications`           | Kirim pendaftaran (form publik)    |
-| GET    | `/api/applications`           | Daftar pendaftaran (`?status=`)    |
-| POST   | `/api/applications/:id/approve` | Setujui & tempatkan ke kamar     |
-| POST   | `/api/applications/:id/reject`  | Tolak pendaftaran                |
-| GET    | `/api/rooms`                  | Denah & status kamar               |
-| GET    | `/api/payments`               | Riwayat pembayaran                 |
-| POST   | `/api/payments/mark-paid`     | Tandai lunas                       |
-| GET/POST | `/api/expenses`             | Pengeluaran                        |
-| GET/POST | `/api/violations`           | Pelanggaran                        |
-| GET    | `/api/mantan`                 | Arsip mantan penghuni              |
-| GET    | `/api/finance`                | Transaksi & kategori pengeluaran   |
-| GET/PUT | `/api/settings`              | Konfigurasi kos                    |
-| GET    | `/api/ai/insights`            | Insight & prediksi                 |
-| POST   | `/api/ai/chat`                | Chat AI (mock)                     |
-
-## Database
-
-Data tersimpan di **SQLite** melalui modul bawaan Node `node:sqlite` — tanpa
-dependensi native, tanpa server DB terpisah. File database dibuat otomatis di
-`server/data/indekos.db` saat pertama dijalankan dan **diisi seed** bila kosong,
-lalu data **bertahan meski server di-restart**.
-
-- Lokasi file dapat diubah lewat env `DB_PATH` (mis. `DB_PATH=:memory:` untuk
-  mode sementara / testing).
-- Entitas yang dipersistensi: pengaturan, penghuni, pendaftaran, pembayaran,
-  pengeluaran, pelanggaran, mantan penghuni, dan aktivitas.
-- Data analitik (grafik pendapatan, insight AI, dsb.) masih berupa mock statis
-  di `data.js`.
-
-Untuk mereset ke data awal, hapus file `server/data/indekos.db*` lalu jalankan
-ulang server.
+SQLite di `DATA_DIR/indekos.db`, diisi data contoh saat pertama jalan. Saat
+upgrade dari skema v1, file lama **otomatis di-backup** ke `indekos.db.bak-v1`
+lalu skema v2 dibuat. Untuk reset ke data contoh, hapus `indekos.db*` dan
+jalankan ulang server.
