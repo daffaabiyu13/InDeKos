@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────
-// InDeKos API server (Express)
-// Persistence: SQLite (see store.js). Read-only analytics mocks
-// (revenues, transactions, expCats, insights, preds, aiKnowledge)
-// still come from data.js.
+// InDeKos API server (Express) — v2
+// Publik (tanpa login): form pendaftaran, form keluar, cek tagihan,
+// halaman invoice & konfirmasi bayar, webhook, callback Google.
+// Selain itu wajib login; aksi sensitif khusus peran 'pemilik'.
 // ─────────────────────────────────────────────────────────────
 import express from 'express';
 import cors from 'cors';
@@ -10,275 +10,549 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import QRCode from 'qrcode';
-import * as store from './store.js';
-import { generateDynamicQris, isValidQris } from './qris.js';
-import { revenues, transactions, expCats, insights, preds, aiKnowledge } from './data.js';
 
-// ── Rupiah helpers ──
-const parseRupiah = (s) => parseInt(String(s).replace(/\D/g, ''), 10) || 0;
-const formatRupiah = (n) => `Rp ${Number(n).toLocaleString('id-ID')}`;
-// Nominal unik per kamar (ekor 3 digit) untuk memudahkan rekonsiliasi.
-const uniqueAmount = (base, room) => base + (parseInt(String(room).replace(/\D/g, ''), 10) % 1000);
+import db, { logActivity } from './db.js';
+import { getSettings, getMaskedSettings, getPublicInfo, updateSettings } from './settings.js';
+import { authRouter, requireAuth, requireRole, allowQueryToken, signToken, verifyToken } from './auth.js';
+import * as billing from './billing.js';
+import * as repo from './repo.js';
+import * as notify from './notify.js';
+import * as gcal from './gcal.js';
+import { saveImage, sendImage } from './uploads.js';
+import { generateDynamicQris, isValidQris } from './qris.js';
+import { insights, preds, aiKnowledge } from './data.js';
+import { todayISO, nowStamp, fmtDate, parseRp, addDays, waNumber } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+app.set('trust proxy', 'loopback');
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' })); // foto KTP + selfie (sudah dikompres di browser)
 
-// ── Health ──
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, service: 'indekos-api', db: 'sqlite', ts: new Date().toISOString() });
+// Async-safe handler: errors → JSON { error } with err.status (default 500).
+const h = (fn) => (req, res) => {
+  Promise.resolve()
+    .then(() => fn(req, res))
+    .catch((err) => {
+      const status = err.status || 500;
+      if (!err.status) console.error(err); // hanya error tak terduga
+      if (!res.headersSent) res.status(status).json({ error: err.status ? err.message : 'Terjadi kesalahan pada server.' });
+    });
+};
+const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+const pemilik = requireRole('pemilik');
+
+// Jalankan pekerjaan notifikasi/sync tanpa menahan respons.
+function kickJobs() {
+  notify.runAutoSend().catch((e) => console.error('[notify]', e.message));
+  gcal.syncInvoices().catch((e) => console.error('[gcal]', e.message));
+}
+
+// ═════════════ PUBLIC ═════════════
+app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'indekos-api', db: 'sqlite', schema: 2, ts: nowStamp() }));
+app.use('/api', authRouter);
+
+app.get('/api/public/info', (_req, res) => {
+  res.json({ ...getPublicInfo(), roomTypes: repo.listRoomTypes().map(({ id, name, price, facilities, description }) => ({ id, name, price, facilities, description })) });
 });
+
+// Formulir pendaftaran calon penghuni.
+app.post('/api/public/applications', h((req, res) => {
+  const b = req.body || {};
+  const need = { name: 'Nama', wa: 'No. WhatsApp', wali: 'Nama kontak darurat 1', waWali: 'No. WA kontak darurat 1', emergency2Name: 'Nama kontak darurat 2', emergency2Wa: 'No. WA kontak darurat 2' };
+  for (const [k, label] of Object.entries(need)) if (!String(b[k] || '').trim()) throw bad(`${label} wajib diisi.`);
+  if (!b.ktpPhoto || !b.selfiePhoto) throw bad('Foto KTP dan foto selfie wajib diunggah.');
+  const ktp = saveImage(b.ktpPhoto, 'ktp');
+  const selfie = saveImage(b.selfiePhoto, 'selfie');
+  // null/'' = verifikasi tidak berjalan (mis. wajah tak terdeteksi) — jangan diubah jadi skor 0.
+  const hasScore = b.faceScore !== null && b.faceScore !== undefined && b.faceScore !== '' && Number.isFinite(Number(b.faceScore));
+  const score = hasScore ? Math.max(0, Math.min(1, Number(b.faceScore))) : null;
+  const info = db.prepare(`INSERT INTO applications
+    (name,tempatLahir,tglLahir,alamat,nik,wa,job,uni,wali,waliStatus,waWali,emergency2Name,emergency2Rel,emergency2Wa,
+     ktpPhoto,selfiePhoto,faceScore,faceMatch,roomTypeId,sumber,masuk,status,createdAt)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)`).run(
+    String(b.name).trim(), b.tempatLahir || '', b.tglLahir || '', b.alamat || '', String(b.nik || '').replace(/\D/g, ''),
+    b.wa, b.job || 'Lainnya', b.uni || '', b.wali, b.waliStatus || '', b.waWali,
+    b.emergency2Name, b.emergency2Rel || '', b.emergency2Wa, ktp, selfie,
+    score, score === null || b.faceMatch === undefined || b.faceMatch === null ? null : (b.faceMatch ? 1 : 0),
+    b.roomTypeId ? Number(b.roomTypeId) : null, b.sumber || '', b.masuk || '', nowStamp(),
+  );
+  logActivity('jade', `Pendaftaran baru dari <strong>${String(b.name).trim()}</strong> menunggu verifikasi`);
+  res.status(201).json({ ok: true, id: info.lastInsertRowid });
+}));
+
+// Temukan penghuni aktif dari nama + kamar (untuk halaman publik).
+function findResident(name, room) {
+  const q = String(name || '').trim().toLowerCase();
+  if (q.length < 3) throw bad('Masukkan nama minimal 3 huruf.');
+  const r = db.prepare('SELECT * FROM residents WHERE room = ?').get(String(room || '').trim());
+  if (!r || !r.name.toLowerCase().includes(q)) throw bad('Data penghuni tidak ditemukan. Periksa nama & nomor kamar.', 404);
+  return r;
+}
+
+// Daftar tagihan terbuka milik penghuni (bisa lebih dari satu bila menunggak).
+app.get('/api/public/bills', h((req, res) => {
+  const r = findResident(req.query.name, req.query.room);
+  const today = todayISO();
+  const invoices = db.prepare(`SELECT * FROM invoices WHERE residentId = ? AND status IN ('unpaid','menunggu') ORDER BY dueDate`).all(r.id)
+    .map((i) => billing.decorateInvoice(i, today))
+    .map(({ publicId, number, kind, description, dueDate, amount, uniqueCode, total, state }) => ({ publicId, number, kind, description, dueDate, amount, uniqueCode, total, state }));
+  res.json({ name: r.name, room: r.room, invoices });
+}));
+
+app.get('/api/public/invoice/:publicId', h(async (req, res) => {
+  const inv = billing.getInvoiceByPublicId(req.params.publicId);
+  if (!inv) throw bad('Invoice tidak ditemukan.', 404);
+  const s = getSettings();
+  const d = billing.decorateInvoice(inv);
+  let qrImage = null;
+  if (inv.status === 'unpaid' && s.paymentMode === 'qris_static' && isValidQris(s.qrisString)) {
+    qrImage = await QRCode.toDataURL(generateDynamicQris(s.qrisString, d.total), { margin: 1, width: 320 });
+  }
+  const { number, name, room, kind, description, periodStart, periodEnd, issueDate, dueDate, amount, uniqueCode, total, status, state, method, paidAt, publicId } = d;
+  res.json({
+    number, name, room, kind, description, periodStart, periodEnd, issueDate, dueDate, amount, uniqueCode, total,
+    status, state, method, paidAt, publicId, qrImage,
+    kos: { namaKos: s.namaKos, alamat: s.alamat, wa: s.wa }, paymentMode: s.paymentMode,
+  });
+}));
+
+app.post('/api/public/invoice/:publicId/confirm', h((req, res) => {
+  const inv = billing.confirmByTenant(req.params.publicId, { method: req.body?.method, note: req.body?.note });
+  if (!inv) throw bad('Invoice tidak ditemukan atau sudah diproses.', 404);
+  kickJobs();
+  res.json({ ok: true });
+}));
+
+// Formulir keluar penghuni.
+app.post('/api/public/exit-requests', h((req, res) => {
+  const b = req.body || {};
+  const r = findResident(b.name, b.room);
+  if (!b.exitDate || !/^\d{4}-\d{2}-\d{2}$/.test(b.exitDate)) throw bad('Tanggal keluar wajib diisi.');
+  if (b.exitDate < todayISO()) throw bad('Tanggal keluar tidak boleh di masa lalu.');
+  if (db.prepare("SELECT 1 FROM exit_requests WHERE residentId = ? AND status = 'pending'").get(r.id)) {
+    throw bad('Anda sudah memiliki pengajuan keluar yang sedang diproses.', 409);
+  }
+  const info = db.prepare(`INSERT INTO exit_requests
+    (residentId,name,room,wa,exitDate,reason,rating,feedback,refundBank,refundAccount,refundName,status,createdAt)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,'pending',?)`).run(
+    r.id, r.name, r.room, b.wa || r.wa, b.exitDate, b.reason || '', Math.min(5, Math.max(1, Number(b.rating) || 5)),
+    String(b.feedback || '').slice(0, 1000), b.refundBank || '', b.refundAccount || '', b.refundName || '', nowStamp(),
+  );
+  logActivity('warn', `<strong>${r.name}</strong> (kamar ${r.room}) mengajukan keluar pada ${fmtDate(b.exitDate)}`);
+  res.status(201).json({ ok: true, id: info.lastInsertRowid });
+}));
+
+// Webhook Jalur B (Midtrans) — aktif bila Server Key diisi. Cocokkan via total (nominal + kode unik).
+app.post('/api/payments/webhook', h((req, res) => {
+  const s = getSettings();
+  if (!s.midtransServerKey) throw bad('Midtrans belum dikonfigurasi.', 503);
+  const { transaction_status: status, gross_amount: gross } = req.body || {};
+  if (!['settlement', 'capture'].includes(status)) return res.json({ ok: true, ignored: status });
+  const total = Math.round(Number(gross) || 0);
+  const inv = db.prepare("SELECT * FROM invoices WHERE status IN ('unpaid','menunggu') AND amount + uniqueCode = ?").get(total);
+  if (!inv) throw bad('Tagihan cocok tidak ditemukan.', 404);
+  billing.markPaid(inv.id, { method: 'QRIS (Midtrans)' });
+  kickJobs();
+  res.json({ ok: true, invoice: inv.number });
+}));
+
+// OAuth callback Google — dipanggil browser setelah consent.
+app.get('/api/gcal/callback', h(async (req, res) => {
+  const back = `${String(getSettings().publicUrl || '').replace(/\/+$/, '')}/pengaturan`;
+  const state = verifyToken(req.query.state);
+  if (!state || state.typ !== 'gcal') return res.redirect(`${back}?gcal=error&msg=${encodeURIComponent('Sesi OAuth tidak valid.')}`);
+  if (req.query.error) return res.redirect(`${back}?gcal=error&msg=${encodeURIComponent(String(req.query.error))}`);
+  try {
+    await gcal.exchangeCode(String(req.query.code || ''));
+    gcal.syncInvoices().catch(() => {});
+    res.redirect(`${back}?gcal=ok`);
+  } catch (e) {
+    res.redirect(`${back}?gcal=error&msg=${encodeURIComponent(e.message)}`);
+  }
+}));
+
+// ═════════════ PROTECTED ═════════════
+app.get('/api/files/:name', allowQueryToken, requireAuth, sendImage);
+app.use('/api', requireAuth);
 
 // ── Settings ──
-app.get('/api/settings', (_req, res) => res.json(store.getSettings()));
+app.get('/api/settings', (_req, res) => res.json(getMaskedSettings()));
+app.put('/api/settings', pemilik, h((req, res) => {
+  const b = { ...(req.body || {}) };
+  if (b.qrisString && !isValidQris(b.qrisString)) throw bad('Payload QRIS tidak valid. Pastikan diawali 000201 dan diakhiri CRC (6304…).');
+  delete b.gcalRefreshToken; // hanya lewat OAuth
+  res.json(updateSettings(b));
+}));
 
-app.put('/api/settings', (req, res) => {
-  res.json(store.updateSettings(req.body || {}));
-});
+// ── Dashboard & finance ──
+app.get('/api/dashboard', h((_req, res) => res.json(repo.dashboard())));
+app.get('/api/finance', h((_req, res) => res.json(repo.finance())));
 
-// ── Residents (full CRUD) ──
-app.get('/api/residents', (req, res) => {
-  const { q = '', filter = 'all' } = req.query;
-  res.json(store.listResidents({ q, filter }));
-});
-
-app.post('/api/residents', (req, res) => {
-  const body = req.body || {};
-  if (!body.name || !body.room) {
-    return res.status(400).json({ error: 'Nama dan kamar wajib diisi.' });
-  }
-  res.status(201).json(store.addResident(body));
-});
-
-app.put('/api/residents/:id', (req, res) => {
-  const updated = store.updateResident(req.params.id, req.body || {});
-  if (!updated) return res.status(404).json({ error: 'Penghuni tidak ditemukan.' });
-  res.json(updated);
-});
-
-// Check-out: move an active resident into the "mantan" (alumni) archive.
-app.post('/api/residents/:id/checkout', (req, res) => {
-  const record = store.checkoutResident(req.params.id, req.body || {});
-  if (!record) return res.status(404).json({ error: 'Penghuni tidak ditemukan.' });
-  res.json({ ok: true, mantan: record });
-});
-
-app.delete('/api/residents/:id', (req, res) => {
-  if (!store.deleteResident(req.params.id)) return res.status(404).json({ error: 'Penghuni tidak ditemukan.' });
+// ── Room types (harga & fasilitas) ──
+app.get('/api/room-types', (_req, res) => res.json(repo.listRoomTypes()));
+function roomTypeBody(b) {
+  const name = String(b.name || '').trim();
+  const price = parseRp(b.price);
+  if (!name) throw bad('Nama tipe kamar wajib diisi.');
+  if (price <= 0) throw bad('Harga harus lebih dari 0.');
+  const facilities = (Array.isArray(b.facilities) ? b.facilities : String(b.facilities || '').split(','))
+    .map((f) => String(f).trim()).filter(Boolean);
+  return { name, price, facilities: JSON.stringify(facilities), description: b.description || '' };
+}
+app.post('/api/room-types', pemilik, h((req, res) => {
+  const t = roomTypeBody(req.body || {});
+  const info = db.prepare('INSERT INTO room_types(name,price,facilities,description) VALUES(?,?,?,?)').run(t.name, t.price, t.facilities, t.description);
+  res.status(201).json({ id: info.lastInsertRowid });
+}));
+app.put('/api/room-types/:id', pemilik, h((req, res) => {
+  const t = roomTypeBody(req.body || {});
+  const info = db.prepare('UPDATE room_types SET name=?, price=?, facilities=?, description=? WHERE id=?').run(t.name, t.price, t.facilities, t.description, Number(req.params.id));
+  if (!info.changes) throw bad('Tipe kamar tidak ditemukan.', 404);
   res.json({ ok: true });
-});
-
-// ── Applications (pendaftaran) ──
-// Public submit (from the prospective-tenant form).
-app.post('/api/applications', (req, res) => {
-  const b = req.body || {};
-  if (!b.name || !b.wa) {
-    return res.status(400).json({ error: 'Nama dan nomor WhatsApp wajib diisi.' });
-  }
-  const id = store.addApplication(b);
-  res.status(201).json({ ok: true, id });
-});
-
-// Admin: list applications (optionally filter by status).
-app.get('/api/applications', (req, res) => {
-  res.json(store.listApplications(req.query.status));
-});
-
-// Admin: approve an application and assign a room → becomes an active resident.
-app.post('/api/applications/:id/approve', (req, res) => {
-  const a = store.getApplication(req.params.id);
-  if (!a) return res.status(404).json({ error: 'Pendaftaran tidak ditemukan.' });
-  if (a.status !== 'pending') return res.status(400).json({ error: 'Pendaftaran sudah diproses.' });
-
-  const room = String(req.body?.room || '').replace(/\D/g, '');
-  if (!room) return res.status(400).json({ error: 'Nomor kamar wajib dipilih.' });
-
-  const target = store.buildRooms().find((r) => String(r.n) === room);
-  if (!target) return res.status(400).json({ error: `Kamar ${room} tidak tersedia.` });
-  if (target.status === 'oc') return res.status(409).json({ error: `Kamar ${room} sudah terisi.` });
-
-  const resident = store.approveApplication(a, room);
-  res.json({ ok: true, resident });
-});
-
-// Admin: reject an application.
-app.post('/api/applications/:id/reject', (req, res) => {
-  const a = store.getApplication(req.params.id);
-  if (!a) return res.status(404).json({ error: 'Pendaftaran tidak ditemukan.' });
-  store.rejectApplication(a.id, req.body?.reason || '');
+}));
+app.delete('/api/room-types/:id', pemilik, h((req, res) => {
+  const used = db.prepare('SELECT COUNT(*) AS n FROM rooms WHERE typeId = ?').get(Number(req.params.id)).n;
+  if (used) throw bad(`Tipe masih dipakai ${used} kamar. Pindahkan kamar ke tipe lain dulu.`, 409);
+  db.prepare('DELETE FROM room_types WHERE id = ?').run(Number(req.params.id));
   res.json({ ok: true });
-});
+}));
 
 // ── Rooms ──
-app.get('/api/rooms', (_req, res) => res.json(store.buildRooms()));
-
-// ── Payments ──
-app.get('/api/payments', (_req, res) => res.json(store.listPayments()));
-
-app.post('/api/payments/mark-paid', (req, res) => {
-  const { room, method = 'Tunai', date } = req.body || {};
-  const p = store.markPaid(room, method, date);
-  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
-  res.json(p);
-});
-
-// ── Public payment (Jalur A: QRIS statis → dinamis + konfirmasi semi-otomatis) ──
-
-// Tenant mencari tagihannya (tanpa login) dan menerima QRIS dinamis.
-app.get('/api/payments/bill', async (req, res) => {
-  const { name = '', room = '' } = req.query;
-  if (!room) return res.status(400).json({ error: 'Nomor kamar wajib diisi.' });
-
-  const bill = store.getBill(room, name);
-  if (!bill) return res.status(404).json({ error: 'Tagihan tidak ditemukan. Periksa nama & nomor kamar.' });
-
-  const s = store.getSettings();
-  const base = parseRupiah(bill.amount);
-  const amountValue = uniqueAmount(base, room);
-
-  const out = {
-    name: bill.name,
-    room: bill.room,
-    period: bill.period,
-    status: bill.status, // lunas | tunggak | menunggu
-    baseAmount: formatRupiah(base),
-    amount: formatRupiah(amountValue),
-    amountValue,
-    paymentMode: s.paymentMode || 'manual',
-    kosName: s.namaKos,
-    qrImage: null,
-  };
-
-  // Bila admin sudah mengonfigurasi QRIS statis, buat QR dinamis ber-nominal.
-  if (out.status !== 'lunas' && (s.paymentMode === 'qris_static') && isValidQris(s.qrisString)) {
-    try {
-      const payload = generateDynamicQris(s.qrisString, amountValue);
-      out.qrImage = await QRCode.toDataURL(payload, { margin: 1, width: 320 });
-    } catch {
-      out.qrImage = null;
-    }
-  }
-  res.json(out);
-});
-
-// Tenant menyatakan sudah membayar → masuk antrian konfirmasi admin.
-app.post('/api/payments/confirm', (req, res) => {
-  const { room, method = 'QRIS', note = '' } = req.body || {};
-  const p = store.confirmPayment(room, { method, note });
-  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
-  res.json({ ok: true });
-});
-
-// Admin: daftar pembayaran menunggu konfirmasi.
-app.get('/api/payments/pending', (_req, res) => res.json(store.listPendingPayments()));
-
-// Admin: verifikasi → tercatat lunas.
-app.post('/api/payments/verify', (req, res) => {
-  const { room, method = 'QRIS' } = req.body || {};
-  const p = store.markPaid(room, method);
-  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
-  res.json(p);
-});
-
-// Admin: tolak klaim pembayaran → kembali menunggak.
-app.post('/api/payments/reject-confirm', (req, res) => {
-  const p = store.rejectConfirm(req.body?.room);
-  if (!p) return res.status(404).json({ error: 'Tagihan tidak ditemukan.' });
-  res.json({ ok: true });
-});
-
-// Webhook untuk Jalur B (Midtrans). Aktif hanya bila Server Key sudah diisi.
-// Mencocokkan pembayaran berdasarkan NOMINAL UNIK lalu menandai lunas otomatis.
-// Catatan: verifikasi signature Midtrans ditambahkan saat integrasi penuh.
-app.post('/api/payments/webhook', (req, res) => {
-  const s = store.getSettings();
-  if (!s.midtransServerKey) {
-    return res.status(503).json({ error: 'Midtrans belum dikonfigurasi.' });
-  }
-  const body = req.body || {};
-  const status = body.transaction_status;
-  const gross = Math.round(Number(body.gross_amount) || 0);
-  if (!['settlement', 'capture'].includes(status)) {
-    return res.json({ ok: true, ignored: status });
-  }
-  const match = store.listPayments().find(
-    (p) => p.status !== 'lunas' && uniqueAmount(parseRupiah(p.amount), p.room) === gross,
+app.get('/api/rooms', h((_req, res) => res.json(repo.listRooms())));
+app.post('/api/rooms', pemilik, h((req, res) => {
+  const number = String(req.body?.number || '').trim();
+  if (!/^[A-Za-z0-9-]{1,10}$/.test(number)) throw bad('Nomor kamar tidak valid.');
+  if (db.prepare('SELECT 1 FROM rooms WHERE number = ?').get(number)) throw bad('Nomor kamar sudah ada.', 409);
+  db.prepare('INSERT INTO rooms(number,floor,typeId,maintenance,note) VALUES(?,?,?,0,?)')
+    .run(number, Number(req.body.floor) || 1, req.body.typeId ? Number(req.body.typeId) : null, '');
+  res.status(201).json({ ok: true });
+}));
+app.put('/api/rooms/:number', h((req, res) => {
+  const room = db.prepare('SELECT * FROM rooms WHERE number = ?').get(req.params.number);
+  if (!room) throw bad('Kamar tidak ditemukan.', 404);
+  const b = req.body || {};
+  if ((b.typeId !== undefined || b.floor !== undefined) && req.user.role !== 'pemilik') throw bad('Hanya pemilik yang dapat mengubah tipe/lantai kamar.', 403);
+  db.prepare('UPDATE rooms SET typeId = ?, floor = ?, maintenance = ?, note = ? WHERE id = ?').run(
+    b.typeId !== undefined ? (b.typeId ? Number(b.typeId) : null) : room.typeId,
+    b.floor !== undefined ? Number(b.floor) || 1 : room.floor,
+    b.maintenance !== undefined ? (b.maintenance ? 1 : 0) : room.maintenance,
+    b.note !== undefined ? String(b.note) : room.note,
+    room.id,
   );
-  if (!match) return res.status(404).json({ error: 'Tagihan cocok tidak ditemukan.' });
-  const paid = store.markPaid(match.room, 'QRIS (Midtrans)');
-  res.json({ ok: true, room: paid.room });
-});
+  res.json(repo.roomStatus(room.number));
+}));
+app.delete('/api/rooms/:number', pemilik, h((req, res) => {
+  if (db.prepare('SELECT 1 FROM residents WHERE room = ?').get(req.params.number)) throw bad('Kamar masih berpenghuni.', 409);
+  db.prepare('DELETE FROM rooms WHERE number = ?').run(req.params.number);
+  res.json({ ok: true });
+}));
 
-// ── Expenses ──
-app.get('/api/expenses', (_req, res) => res.json(store.listExpenses()));
-
-app.post('/api/expenses', (req, res) => {
-  const body = req.body || {};
-  if (!body.desc || !body.amount) {
-    return res.status(400).json({ error: 'Keterangan dan jumlah wajib diisi.' });
+// ── Residents ──
+app.get('/api/residents', h((req, res) => res.json(repo.listResidents({ q: req.query.q, filter: req.query.filter }))));
+app.get('/api/residents/:id', h((req, res) => {
+  const d = repo.residentDetail(req.params.id);
+  if (!d) throw bad('Penghuni tidak ditemukan.', 404);
+  res.json(d);
+}));
+app.post('/api/residents', h((req, res) => {
+  const b = req.body || {};
+  if (!b.name || !b.room) throw bad('Nama dan kamar wajib diisi.');
+  const created = repo.createResident({ ...b, ktpPhoto: saveImage(b.ktpPhoto, 'ktp'), selfiePhoto: saveImage(b.selfiePhoto, 'selfie') });
+  kickJobs();
+  res.status(201).json(created);
+}));
+app.put('/api/residents/:id', h((req, res) => {
+  const b = { ...(req.body || {}) };
+  if (b.rent !== undefined && req.user.role !== 'pemilik') throw bad('Hanya pemilik yang dapat mengubah harga sewa khusus.', 403);
+  const updated = repo.updateResident(req.params.id, b);
+  if (!updated) throw bad('Penghuni tidak ditemukan.', 404);
+  kickJobs();
+  res.json(updated);
+}));
+// Keluar langsung oleh admin (tanpa pengajuan dari penghuni).
+app.post('/api/residents/:id/checkout', h((req, res) => {
+  const b = req.body || {};
+  const result = billing.checkoutResident(req.params.id, { exitDate: b.exitDate, alasan: b.alasan, star: b.star, feedback: b.feedback });
+  if (!result) throw bad('Penghuni tidak ditemukan.', 404);
+  kickJobs();
+  res.json({ ok: true, ...result });
+}));
+app.post('/api/residents/:id/apply-promo', h((req, res) => {
+  try {
+    const inv = billing.applyPromo(req.params.id, req.body?.promoId);
+    kickJobs();
+    res.json(billing.decorateInvoice(inv));
+  } catch (e) {
+    throw bad(e.message);
   }
-  res.status(201).json(store.addExpense(body));
-});
+}));
 
-// ── Violations ──
-app.get('/api/violations', (_req, res) => res.json(store.listViolations()));
+// ── Applications ──
+app.get('/api/applications', h((req, res) => res.json(repo.listApplications(req.query.status))));
+app.post('/api/applications/:id/approve', h((req, res) => {
+  const room = String(req.body?.room || '').trim();
+  if (!room) throw bad('Nomor kamar wajib dipilih.');
+  const resident = repo.approveApplication(req.params.id, { room, dueDay: req.body.dueDay, rent: req.user.role === 'pemilik' ? req.body.rent : undefined });
+  kickJobs();
+  res.json({ ok: true, resident });
+}));
+app.post('/api/applications/:id/reject', h((req, res) => {
+  const info = db.prepare("UPDATE applications SET status = 'rejected', reason = ? WHERE id = ? AND status = 'pending'")
+    .run(String(req.body?.reason || ''), Number(req.params.id));
+  if (!info.changes) throw bad('Pendaftaran tidak ditemukan atau sudah diproses.', 404);
+  res.json({ ok: true });
+}));
 
-app.post('/api/violations/send', (req, res) => {
-  const { name, date } = req.body || {};
-  const v = store.sendViolation(name, date);
-  if (!v) return res.status(404).json({ error: 'Pelanggaran tidak ditemukan.' });
-  res.json(v);
-});
+// ── Exit requests ──
+app.get('/api/exit-requests', h((req, res) => res.json(repo.listExitRequests(req.query.status))));
+app.post('/api/exit-requests/:id/approve', h((req, res) => {
+  const result = repo.approveExit(req.params.id, { exitDate: req.body?.exitDate, adminNote: req.body?.adminNote });
+  kickJobs();
+  res.json({ ok: true, ...result });
+}));
+app.post('/api/exit-requests/:id/reject', h((req, res) => {
+  const info = db.prepare("UPDATE exit_requests SET status = 'rejected', adminNote = ?, processedAt = ? WHERE id = ? AND status = 'pending'")
+    .run(String(req.body?.adminNote || ''), nowStamp(), Number(req.params.id));
+  if (!info.changes) throw bad('Pengajuan tidak ditemukan atau sudah diproses.', 404);
+  res.json({ ok: true });
+}));
 
-app.post('/api/violations', (req, res) => {
-  res.status(201).json(store.addViolation(req.body || {}));
-});
+// ── Invoices ──
+app.get('/api/invoices', h((req, res) => {
+  const { state = 'all', kind = 'all', residentId, month } = req.query;
+  const today = todayISO();
+  let rows = db.prepare('SELECT * FROM invoices ORDER BY dueDate DESC, id DESC').all().map((i) => billing.decorateInvoice(i, today));
+  if (residentId) rows = rows.filter((i) => i.residentId === Number(residentId));
+  if (kind !== 'all') rows = rows.filter((i) => i.kind === kind);
+  if (month) rows = rows.filter((i) => i.dueDate.startsWith(month));
+  if (state === 'open') rows = rows.filter((i) => i.status === 'unpaid' || i.status === 'menunggu');
+  else if (state !== 'all') rows = rows.filter((i) => i.state === state);
+  res.json(rows);
+}));
+app.post('/api/invoices/generate', h((_req, res) => {
+  const created = billing.generateAll();
+  kickJobs();
+  res.json({ created });
+}));
+app.post('/api/invoices/:id/pay', h((req, res) => {
+  const inv = billing.markPaid(req.params.id, { method: req.body?.method || 'Tunai', paidAt: req.body?.paidAt });
+  if (!inv) throw bad('Invoice tidak ditemukan atau sudah dibatalkan.', 404);
+  kickJobs();
+  res.json(billing.decorateInvoice(inv));
+}));
+app.post('/api/invoices/:id/reject', h((req, res) => {
+  const inv = billing.rejectConfirmation(req.params.id);
+  if (!inv) throw bad('Invoice tidak dalam status menunggu.', 400);
+  res.json(billing.decorateInvoice(inv));
+}));
+app.post('/api/invoices/:id/void', h((req, res) => {
+  const inv = billing.voidInvoice(req.params.id);
+  if (!inv) throw bad('Invoice tidak ditemukan atau sudah lunas.', 400);
+  kickJobs();
+  res.json(billing.decorateInvoice(inv));
+}));
+app.post('/api/invoices/:id/send', h(async (req, res) => {
+  const inv = billing.getInvoice(req.params.id);
+  if (!inv) throw bad('Invoice tidak ditemukan.', 404);
+  const result = await notify.sendInvoice(inv, { kind: req.body?.kind === 'reminder' ? 'reminder' : 'invoice' });
+  if (!result.ok) throw bad(`Gagal mengirim: ${result.error}`, 502);
+  res.json(result);
+}));
 
-// ── Former residents ──
-app.get('/api/mantan', (_req, res) => res.json(store.listMantan()));
+// Kalender penagihan (per bulan).
+app.get('/api/calendar', h((req, res) => {
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : todayISO().slice(0, 7);
+  const today = todayISO();
+  const rows = db.prepare("SELECT * FROM invoices WHERE status != 'void' AND substr(dueDate,1,7) = ? ORDER BY dueDate").all(month)
+    .map((i) => billing.decorateInvoice(i, today));
+  res.json({ month, invoices: rows, gcal: gcal.gcalStatus() });
+}));
 
-// ── Finance / dashboard aggregates ──
-app.get('/api/finance', (_req, res) => {
-  res.json({ revenues, transactions, expCats });
-});
+// ── Promos ──
+app.get('/api/promos', h((_req, res) => {
+  const today = todayISO();
+  res.json(db.prepare('SELECT * FROM promos ORDER BY id DESC').all().map((p) => ({
+    ...p, active: Boolean(p.active), open: billing.promoIsOpen(p, today),
+    used: db.prepare("SELECT COUNT(*) AS n FROM invoices WHERE promoId = ? AND status != 'void'").get(p.id).n,
+  })));
+}));
+function promoBody(b) {
+  const name = String(b.name || '').trim();
+  const payMonths = Number(b.payMonths); const freeMonths = Number(b.freeMonths);
+  if (!name) throw bad('Nama promo wajib diisi.');
+  if (!(payMonths >= 1 && payMonths <= 24)) throw bad('Bulan bayar harus 1–24.');
+  if (!(freeMonths >= 0 && freeMonths <= 12)) throw bad('Bulan gratis harus 0–12.');
+  if (b.startDate && b.endDate && b.endDate < b.startDate) throw bad('Tanggal berakhir harus setelah tanggal mulai.');
+  return [name, payMonths, freeMonths, b.active ? 1 : 0, b.startDate || '', b.endDate || '', b.description || ''];
+}
+app.post('/api/promos', pemilik, h((req, res) => {
+  const info = db.prepare('INSERT INTO promos(name,payMonths,freeMonths,active,startDate,endDate,description) VALUES(?,?,?,?,?,?,?)').run(...promoBody(req.body || {}));
+  res.status(201).json({ id: info.lastInsertRowid });
+}));
+app.put('/api/promos/:id', pemilik, h((req, res) => {
+  const info = db.prepare('UPDATE promos SET name=?,payMonths=?,freeMonths=?,active=?,startDate=?,endDate=?,description=? WHERE id=?')
+    .run(...promoBody(req.body || {}), Number(req.params.id));
+  if (!info.changes) throw bad('Promo tidak ditemukan.', 404);
+  res.json({ ok: true });
+}));
+app.delete('/api/promos/:id', pemilik, h((req, res) => {
+  db.prepare('DELETE FROM promos WHERE id = ?').run(Number(req.params.id));
+  res.json({ ok: true });
+}));
 
-app.get('/api/dashboard', (_req, res) => {
-  const rooms = store.buildRooms();
-  const occupied = rooms.filter((r) => r.status === 'oc').length;
-  const available = rooms.filter((r) => r.status === 'av').length;
-  const residents = store.listResidents();
-  const tunggakan = residents
-    .filter((r) => r.status === 'tunggak')
-    .map((r) => ({ name: r.name, room: r.room, amount: 'Rp 1.300.000', due: '01/09/2026' }));
-  res.json({
-    stats: {
-      activeResidents: residents.length,
-      availableRooms: available,
-      occupiedRooms: occupied,
-      totalRooms: rooms.length,
-      incomeLabel: 'Rp 18,5 Jt',
-      arrears: tunggakan.length,
-    },
-    revenues,
-    activities: store.listActivities(),
-    tunggakan,
-    occupancy: {
-      terisi: occupied,
-      tersedia: available,
-      perbaikan: 0,
-      pct: rooms.length ? Math.round((occupied / rooms.length) * 100) : 0,
-    },
-  });
-});
+// ── Charges & denda ──
+app.get('/api/charges', h((req, res) => {
+  const rows = req.query.residentId
+    ? db.prepare('SELECT c.*, r.name AS residentName, r.room FROM charges c JOIN residents r ON r.id = c.residentId WHERE c.residentId = ? ORDER BY c.id DESC').all(Number(req.query.residentId))
+    : db.prepare('SELECT c.*, r.name AS residentName, r.room FROM charges c JOIN residents r ON r.id = c.residentId ORDER BY c.active DESC, c.id DESC').all();
+  res.json(rows.map((c) => ({ ...c, recurring: Boolean(c.recurring), active: Boolean(c.active) })));
+}));
+app.post('/api/charges', h((req, res) => {
+  const b = req.body || {};
+  const r = db.prepare('SELECT * FROM residents WHERE id = ?').get(Number(b.residentId));
+  if (!r) throw bad('Penghuni tidak ditemukan.');
+  const amount = parseRp(b.amount);
+  if (!String(b.name || '').trim()) throw bad('Nama charge/denda wajib diisi.');
+  if (amount <= 0) throw bad('Nominal harus lebih dari 0.');
+  if (!['charge', 'denda'].includes(b.kind)) throw bad('Jenis harus charge atau denda.');
+  const startDate = /^\d{4}-\d{2}-\d{2}$/.test(b.startDate || '') ? b.startDate : todayISO();
+  const billDay = Math.min(31, Math.max(1, Number(b.billDay) || Number(startDate.slice(8, 10))));
+  const info = db.prepare(`INSERT INTO charges(residentId,kind,name,amount,recurring,billDay,startDate,endDate,active,createdAt)
+    VALUES(?,?,?,?,?,?,?,?,1,?)`).run(r.id, b.kind, String(b.name).trim(), amount, b.recurring ? 1 : 0, billDay, startDate, b.endDate || '', nowStamp());
+  billing.generateForResident(r.id);
+  logActivity('warn', `${b.kind === 'denda' ? 'Denda' : 'Charge'} <strong>${String(b.name).trim()}</strong> ditambahkan untuk ${r.name} (kamar ${r.room})`);
+  kickJobs();
+  res.status(201).json({ id: info.lastInsertRowid });
+}));
+app.put('/api/charges/:id', h((req, res) => {
+  const c = db.prepare('SELECT * FROM charges WHERE id = ?').get(Number(req.params.id));
+  if (!c) throw bad('Charge tidak ditemukan.', 404);
+  const b = req.body || {};
+  db.prepare('UPDATE charges SET active = ?, endDate = ?, amount = ?, billDay = ? WHERE id = ?').run(
+    b.active !== undefined ? (b.active ? 1 : 0) : c.active,
+    b.endDate !== undefined ? b.endDate : c.endDate,
+    b.amount !== undefined ? parseRp(b.amount) : c.amount,
+    b.billDay !== undefined ? Math.min(31, Math.max(1, Number(b.billDay))) : c.billDay,
+    c.id,
+  );
+  if (b.active) billing.generateForResident(c.residentId);
+  res.json({ ok: true });
+}));
 
-// ── AI insight / chat (mock) ──
-app.get('/api/ai/insights', (_req, res) => {
-  res.json({ insights, preds });
-});
+// ── Expenses (manual & scan struk) ──
+app.get('/api/expenses', h((req, res) => {
+  const month = req.query.month;
+  const rows = month
+    ? db.prepare('SELECT * FROM expenses WHERE substr(date,1,7) = ? ORDER BY date DESC, id DESC').all(month)
+    : db.prepare('SELECT * FROM expenses ORDER BY date DESC, id DESC').all();
+  res.json(rows);
+}));
+app.post('/api/expenses', h((req, res) => {
+  const b = req.body || {};
+  const amount = parseRp(b.amount);
+  if (!String(b.description || '').trim()) throw bad('Keterangan wajib diisi.');
+  if (amount <= 0) throw bad('Nominal harus lebih dari 0.');
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : todayISO();
+  const photo = saveImage(b.receiptPhoto, 'struk');
+  const info = db.prepare('INSERT INTO expenses(date,description,cat,amount,source,merchant,receiptPhoto,createdAt) VALUES(?,?,?,?,?,?,?,?)')
+    .run(date, String(b.description).trim(), b.cat || 'Lainnya', amount, b.source === 'scan' ? 'scan' : 'manual', b.merchant || '', photo, nowStamp());
+  res.status(201).json(db.prepare('SELECT * FROM expenses WHERE id = ?').get(info.lastInsertRowid));
+}));
+app.delete('/api/expenses/:id', h((req, res) => {
+  db.prepare('DELETE FROM expenses WHERE id = ?').run(Number(req.params.id));
+  res.json({ ok: true });
+}));
 
+// ── Violations (kategori custom + retensi 1 tahun) ──
+app.get('/api/violation-categories', h((_req, res) => {
+  res.json(db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM violations v WHERE v.categoryId = c.id) AS used
+    FROM violation_categories c ORDER BY c.name`).all());
+}));
+app.post('/api/violation-categories', h((req, res) => {
+  const name = String(req.body?.name || '').trim();
+  if (!name) throw bad('Nama kategori wajib diisi.');
+  if (db.prepare('SELECT 1 FROM violation_categories WHERE name = ?').get(name)) throw bad('Kategori sudah ada.', 409);
+  const severity = ['ringan', 'sedang', 'berat'].includes(req.body.severity) ? req.body.severity : 'ringan';
+  const sp = ['SP1', 'SP2', 'SP3'].includes(req.body.defaultSp) ? req.body.defaultSp : 'SP1';
+  const info = db.prepare('INSERT INTO violation_categories(name,severity,defaultSp) VALUES(?,?,?)').run(name, severity, sp);
+  res.status(201).json({ id: info.lastInsertRowid });
+}));
+app.delete('/api/violation-categories/:id', h((req, res) => {
+  db.prepare('DELETE FROM violation_categories WHERE id = ?').run(Number(req.params.id));
+  res.json({ ok: true });
+}));
+app.get('/api/violations', h((_req, res) => {
+  const s = getSettings();
+  const days = Number(s.violationRetentionDays || 365);
+  res.json(db.prepare(`SELECT v.*, c.name AS categoryName, c.severity FROM violations v
+      LEFT JOIN violation_categories c ON c.id = v.categoryId ORDER BY v.date DESC, v.id DESC`).all()
+    .map((v) => ({ ...v, sent: Boolean(v.sent), expiresOn: addDays(v.createdAt.slice(0, 10), days) })));
+}));
+app.post('/api/violations', h((req, res) => {
+  const b = req.body || {};
+  const r = db.prepare('SELECT * FROM residents WHERE id = ?').get(Number(b.residentId));
+  if (!r) throw bad('Pilih penghuni.');
+  const cat = b.categoryId ? db.prepare('SELECT * FROM violation_categories WHERE id = ?').get(Number(b.categoryId)) : null;
+  if (!cat) throw bad('Pilih kategori pelanggaran.');
+  const sp = ['SP1', 'SP2', 'SP3'].includes(b.sp) ? b.sp : cat.defaultSp;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(b.date || '') ? b.date : todayISO();
+  const info = db.prepare(`INSERT INTO violations(residentId,name,room,categoryId,description,date,sp,sent,createdAt)
+    VALUES(?,?,?,?,?,?,?,0,?)`).run(r.id, r.name, r.room, cat.id, String(b.description || '').slice(0, 500), date, sp, nowStamp());
+  logActivity('warn', `Pelanggaran <strong>${cat.name}</strong> (${sp}) dicatat untuk ${r.name}`);
+  res.status(201).json({ id: info.lastInsertRowid });
+}));
+app.post('/api/violations/:id/send', h(async (req, res) => {
+  const v = db.prepare(`SELECT v.*, c.name AS categoryName, r.wa FROM violations v
+    LEFT JOIN violation_categories c ON c.id = v.categoryId LEFT JOIN residents r ON r.id = v.residentId WHERE v.id = ?`).get(Number(req.params.id));
+  if (!v) throw bad('Pelanggaran tidak ditemukan.', 404);
+  const s = getSettings();
+  const message = `Halo ${v.name}, ini Surat Peringatan *${v.sp}* dari ${s.namaKos}.\nPelanggaran: ${v.categoryName}${v.description ? ` — ${v.description}` : ''}\nTanggal: ${fmtDate(v.date)}\nMohon tidak mengulanginya. Terima kasih.`;
+  let result = { ok: true, via: 'link', link: `https://wa.me/${waNumber(v.wa)}?text=${encodeURIComponent(message)}` };
+  if (notify.gatewayReady(s)) {
+    result = { ...(await notify.sendWhatsApp(v.wa, message, s)), via: 'gateway' };
+    if (!result.ok) throw bad(`Gagal mengirim: ${result.error}`, 502);
+  }
+  db.prepare('UPDATE violations SET sent = 1 WHERE id = ?').run(v.id);
+  res.json(result);
+}));
+app.delete('/api/violations/:id', h((req, res) => {
+  db.prepare('DELETE FROM violations WHERE id = ?').run(Number(req.params.id));
+  res.json({ ok: true });
+}));
+
+// ── Mantan ──
+app.get('/api/mantan', h((_req, res) => res.json(db.prepare('SELECT * FROM mantan ORDER BY keluar DESC').all())));
+
+// ── Notifikasi WhatsApp ──
+app.get('/api/notifications', h((_req, res) => res.json({ ready: notify.gatewayReady(), log: notify.recentNotifications() })));
+app.post('/api/notifications/test', pemilik, h(async (req, res) => {
+  const target = req.body?.target || getSettings().wa;
+  const result = await notify.sendWhatsApp(target, `✅ Tes notifikasi InDeKos berhasil (${new Date().toLocaleString('id-ID')}).`);
+  if (!result.ok) throw bad(`Gagal: ${result.error}`, 502);
+  res.json(result);
+}));
+app.post('/api/notifications/run', h(async (_req, res) => {
+  const [auto, rem] = [await notify.runAutoSend(), await notify.runReminders()];
+  res.json({ invoices: auto, reminders: rem });
+}));
+
+// ── Google Calendar ──
+app.get('/api/gcal/status', (_req, res) => res.json(gcal.gcalStatus()));
+app.get('/api/gcal/auth-url', pemilik, h((req, res) => {
+  if (!gcal.gcalConfigured()) throw bad('Set GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET di server terlebih dahulu.', 503);
+  res.json({ url: gcal.authUrl(signToken({ typ: 'gcal', sub: req.user.id }, 10 * 60 * 1000)) });
+}));
+app.post('/api/gcal/sync', h(async (_req, res) => res.json(await gcal.syncInvoices(500))));
+app.post('/api/gcal/disconnect', pemilik, h(async (_req, res) => {
+  await gcal.disconnect();
+  res.json({ ok: true });
+}));
+
+// ── AI (mock) ──
+app.get('/api/ai/insights', (_req, res) => res.json({ insights, preds }));
 app.post('/api/ai/chat', (req, res) => {
   const q = String(req.body?.message || '').toLowerCase();
   let reply = aiKnowledge.default;
@@ -288,17 +562,38 @@ app.post('/api/ai/chat', (req, res) => {
   res.json({ reply });
 });
 
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan.' }));
+
 // ── Serve the built client (production) ──
-// When client/dist exists, serve it and fall back to index.html so
-// client-side routes (BrowserRouter) resolve on a full page load.
 const distDir = path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(distDir)) {
   app.use(express.static(distDir));
-  app.get(/^(?!\/api).*/, (_req, res) => {
-    res.sendFile(path.join(distDir, 'index.html'));
-  });
+  app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(distDir, 'index.html')));
 }
 
+// ═════════════ SCHEDULER ═════════════
+// Tiap 30 menit: terbitkan invoice, hapus pelanggaran > 1 tahun,
+// kirim invoice/reminder WhatsApp, sinkron Google Calendar.
+async function runJobs() {
+  try {
+    const created = billing.generateAll();
+    const purged = repo.purgeOldViolations();
+    const sent = await notify.runAutoSend();
+    const reminded = await notify.runReminders();
+    const synced = await gcal.syncInvoices();
+    if (created || purged || sent.sent || reminded.sent || synced.created) {
+      console.log(`[jobs] invoice baru ${created} · pelanggaran dihapus ${purged} · WA invoice ${sent.sent || 0} · reminder ${reminded.sent || 0} · gcal +${synced.created || 0}`);
+    }
+  } catch (e) {
+    console.error('[jobs]', e.message);
+  }
+}
+
+billing.initBilling();
 app.listen(PORT, () => {
   console.log(`InDeKos API listening on http://localhost:${PORT}`);
+  if (!process.env.DISABLE_SCHEDULER) {
+    setTimeout(runJobs, 3000);
+    setInterval(runJobs, 30 * 60 * 1000);
+  }
 });
