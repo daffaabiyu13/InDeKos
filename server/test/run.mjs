@@ -56,5 +56,12 @@ const b = await startServer({
 failed += (await run('integration.test.mjs', [b.port, mock])) ? 1 : 0;
 b.stop();
 
+console.log('\n▶ AI Asisten suite (mock Claude API)');
+const aiMock = await freePort();
+const c = await startServer({ ANTHROPIC_BASE_URL: `http://localhost:${aiMock}`, ANTHROPIC_API_KEY: '', ANTHROPIC_AUTH_TOKEN: '', AI_MODEL: '' });
+failed += (await run('ai.test.mjs', [c.port, aiMock])) ? 1 : 0;
+if (failed) console.log(c.log().slice(-2000));
+c.stop();
+
 console.log(failed ? `\n✗ ${failed} suite gagal` : '\n✓ Semua suite lulus');
 process.exit(failed ? 1 : 0);

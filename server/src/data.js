@@ -48,10 +48,15 @@ export const settings = {
 
   // Pelanggaran
   violationRetentionDays: 365,
+
+  // AI Asisten: insight lokal selalu jalan; tanya jawab bebas pakai Claude bila API key diisi
+  aiEnabled: true,
+  aiModel: 'claude-opus-5',
+  aiApiKey: '',
 };
 
 // Kunci rahasia: tidak pernah dikirim ke browser apa adanya.
-export const SECRET_KEYS = ['waToken', 'midtransServerKey', 'gcalRefreshToken'];
+export const SECRET_KEYS = ['waToken', 'midtransServerKey', 'gcalRefreshToken', 'aiApiKey'];
 
 export const roomTypes = [
   { name: 'Standar', price: 1300000, facilities: ['Kasur', 'Lemari', 'Meja belajar', 'Wi-Fi', 'Kamar mandi luar'], description: 'Kamar standar nyaman untuk mahasiswa & pekerja.' },
@@ -156,23 +161,4 @@ export const activities = [
 ];
 
 // Mock AI knowledge base — keyword → response (tetap statis)
-export const aiKnowledge = {
-  terlambat: 'Berdasarkan riwayat, <strong>Budi Santoso (Kamar 103)</strong> dan <strong>Dewi Kusuma (Kamar 108)</strong> paling sering terlambat. Keduanya menunggak September.',
-  'lama tinggal': 'Rata-rata lama tinggal penghuni aktif sekitar <strong>6,8 bulan</strong>. Mantan penghuni rata-rata 8,4 bulan.',
-  tren: 'Tren hunian: Apr 76% → Mei 80% → Jun 80% → Jul 85% → Agu 80% → Sep 75%.',
-  pendapatan: 'Lihat menu <strong>Keuangan</strong> untuk pendapatan aktual yang dihitung dari invoice lunas.',
-  kosong: 'Lihat menu <strong>Kamar</strong> — kamar merah berarti kosong dan siap disewakan.',
-  default: 'Saya bisa bantu analisa pola pembayaran, tren hunian, atau profil penghuni. Coba tanya lebih spesifik.',
-};
 
-export const insights = [
-  { ico: '💡', txt: 'Aktifkan reminder WhatsApp H-3 di Pengaturan agar penghuni tidak lupa jatuh tempo.' },
-  { ico: '📈', txt: 'Tingkat hunian September lebih tinggi dari rata-rata tahun lalu (68%).' },
-  { ico: '🎁', txt: 'Promo 6+1 aktif sampai 31 Des — tawarkan ke penghuni yang kontraknya panjang.' },
-];
-
-export const preds = [
-  { room: '105', name: 'Siti Rahayu', risk: 'Rendah', desc: 'Pembayaran selalu tepat waktu', col: 'ok' },
-  { room: '109', name: 'Rian Hidayat', risk: 'Sedang', desc: 'Pernah SP2 — perlu tindak lanjut', col: 'warn' },
-  { room: '103', name: 'Budi Santoso', risk: 'Tinggi', desc: 'Tunggakan + pelanggaran aktif', col: 'err' },
-];

@@ -10,6 +10,7 @@
     "test": "node test/run.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "qrcode": "^1.5.4"

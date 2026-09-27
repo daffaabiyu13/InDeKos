@@ -20,7 +20,8 @@ import * as notify from './notify.js';
 import * as gcal from './gcal.js';
 import { saveImage, sendImage } from './uploads.js';
 import { generateDynamicQris, isValidQris } from './qris.js';
-import { insights, preds, aiKnowledge } from './data.js';
+import * as ai from './ai.js';
+import { insightsFor } from './aiData.js';
 import { todayISO, nowStamp, fmtDate, parseRp, addDays, waNumber } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -184,6 +185,10 @@ app.put('/api/settings', pemilik, h((req, res) => {
   const b = { ...(req.body || {}) };
   if (b.qrisString && !isValidQris(b.qrisString)) throw bad('Payload QRIS tidak valid. Pastikan diawali 000201 dan diakhiri CRC (6304…).');
   delete b.gcalRefreshToken; // hanya lewat OAuth
+  if (b.aiModel !== undefined) {
+    b.aiModel = String(b.aiModel ?? '').trim() || ai.DEFAULT_MODEL; // kosong → model default
+    if (!/^[a-z0-9][a-z0-9.@-]{2,63}$/.test(b.aiModel)) throw bad('Nama model AI tidak valid.');
+  }
   res.json(updateSettings(b));
 }));
 
@@ -551,16 +556,27 @@ app.post('/api/gcal/disconnect', pemilik, h(async (_req, res) => {
   res.json({ ok: true });
 }));
 
-// ── AI (mock) ──
-app.get('/api/ai/insights', (_req, res) => res.json({ insights, preds }));
-app.post('/api/ai/chat', (req, res) => {
-  const q = String(req.body?.message || '').toLowerCase();
-  let reply = aiKnowledge.default;
-  for (const [k, v] of Object.entries(aiKnowledge)) {
-    if (k !== 'default' && q.includes(k)) { reply = v; break; }
-  }
-  res.json({ reply });
-});
+// ── AI Asisten (insight per menu + tanya jawab) ──
+app.get('/api/ai/status', (_req, res) => res.json(ai.aiStatus()));
+app.get('/api/ai/insights', h((req, res) => {
+  if (!ai.aiConfig().enabled) throw bad('Fitur AI dimatikan di Pengaturan.', 403);
+  res.json(insightsFor(String(req.query.scope || 'ai'), req.query.id, undefined, req.user));
+}));
+// Batas wajar per pengguna agar biaya API terkendali.
+const aiHits = new Map();
+function aiRateLimit(req, res, next) {
+  const now = Date.now();
+  const list = (aiHits.get(req.user.id) || []).filter((t) => now - t < 60_000);
+  if (list.length >= 20) return res.status(429).json({ error: 'Terlalu banyak pertanyaan. Tunggu sebentar lalu coba lagi.' });
+  list.push(now);
+  aiHits.set(req.user.id, list);
+  next();
+}
+app.post('/api/ai/chat', aiRateLimit, h(async (req, res) => {
+  const b = req.body || {};
+  res.json(await ai.chat({ scope: b.scope, id: b.id, message: b.message, history: b.history, viewer: req.user }));
+}));
+app.post('/api/ai/test', pemilik, h(async (_req, res) => res.json(await ai.testConnection())));
 
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Endpoint tidak ditemukan.' }));
 

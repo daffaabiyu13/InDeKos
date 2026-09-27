@@ -20,7 +20,7 @@ const types = [
 
 export default function Pengaturan({ onSaved }) {
   const [s, setS] = useState(null);
-  const [secrets, setSecrets] = useState({ waToken: '', midtransServerKey: '' });
+  const [secrets, setSecrets] = useState({ waToken: '', midtransServerKey: '', aiApiKey: '' });
   const [saving, setSaving] = useState(false);
   const toast = useToast();
   const { reload } = useSettings();
@@ -55,14 +55,20 @@ export default function Pengaturan({ onSaved }) {
       for (const [k, v] of Object.entries(secrets)) if (v.trim()) body[k] = v.trim();
       const next = await api.saveSettings(body);
       setS(next);
-      setSecrets({ waToken: '', midtransServerKey: '' });
+      setSecrets({ waToken: '', midtransServerKey: '', aiApiKey: '' });
       reload();
       onSaved?.();
       toast('✅ Pengaturan berhasil disimpan!');
     } catch (e) { toast(`⚠️ ${e.message}`); } finally { setSaving(false); }
   }
   async function clearSecret(k) {
-    try { setS(await api.saveSettings({ [k]: null })); toast('Kredensial dihapus.'); } catch (e) { toast(`⚠️ ${e.message}`); }
+    try {
+      const next = await api.saveSettings({ [k]: null });
+      // Hanya perbarui status kunci ini — perubahan lain di form yang belum disimpan tetap utuh.
+      setS((x) => ({ ...x, [`${k}Set`]: next[`${k}Set`] }));
+      setSecrets((x) => ({ ...x, [k]: '' }));
+      toast('Kredensial dihapus.');
+    } catch (e) { toast(`⚠️ ${e.message}`); }
   }
 
   return (
@@ -203,6 +209,7 @@ export default function Pengaturan({ onSaved }) {
             </div>
           </div>
         </div>
+        <AICard s={s} set={set} secrets={secrets} setSecret={setSecret} clearSecret={clearSecret} />
       </div>
 
       <div className="save-bar">
@@ -288,6 +295,56 @@ function GcalCard({ s, setS }) {
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+const AI_MODELS = [
+  { id: 'claude-opus-5', label: 'Claude Opus 5 — paling cerdas (default)' },
+  { id: 'claude-sonnet-5', label: 'Claude Sonnet 5 — seimbang & lebih hemat' },
+  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 — paling cepat & hemat' },
+];
+
+function AICard({ s, set, secrets, setSecret, clearSecret }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const custom = s.aiModel && !AI_MODELS.some((m) => m.id === s.aiModel);
+  async function test() {
+    setBusy(true);
+    try { const r = await api.aiTest(); toast(`✅ Terhubung ke ${r.model}.`); } catch (e) { toast(`⚠️ ${e.message}`); } finally { setBusy(false); }
+  }
+  return (
+    <div className="card" id="ai">
+      <div className="ch"><div><div className="ct">🤖 AI Asisten</div><div className="cs">Insight & tanya jawab di setiap menu</div></div>
+        {s.aiEnabled === false ? <span className="badge b-neu">Mati</span> : s.aiApiKeySet ? <span className="badge b-ok">● Claude</span> : <span className="badge b-neu">Mode lokal</span>}</div>
+      <div className="cb">
+        <div className="toggle-card">
+          <label className="switch-row"><input type="checkbox" checked={s.aiEnabled !== false} onChange={set('aiEnabled')} /> <strong>Tampilkan AI di setiap menu</strong></label>
+          <div className="tm" style={{ marginTop: 4 }}>Kartu insight di atas tiap halaman + tombol “Tanya AI”. Insight dihitung dari data Anda dan tetap jalan tanpa API key.</div>
+        </div>
+        <div className="fg">
+          <label className="fl">API key Claude {s.aiApiKeySet && <span className="badge b-ok" style={{ marginLeft: 4 }}>tersimpan</span>}</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input className="fi" type="password" autoComplete="off" placeholder={s.aiApiKeySet ? '•••••••• (kosongkan untuk mempertahankan)' : 'sk-ant-…'} value={secrets.aiApiKey} onChange={setSecret('aiApiKey')} />
+            {s.aiApiKeySet && <button className="btn btn-g btn-sm" onClick={() => clearSecret('aiApiKey')}>Hapus</button>}
+          </div>
+          <div className="field-hint">Buat di console.anthropic.com → API Keys. Disimpan di server, tidak pernah ditampilkan kembali. Tanpa key, AI memakai mode lokal.</div>
+        </div>
+        <div className="fg">
+          <label className="fl">Model</label>
+          <select className="fi" value={custom ? '__custom' : (s.aiModel || 'claude-opus-5')} onChange={(e) => set('aiModel')({ target: { type: 'text', value: e.target.value === '__custom' ? '' : e.target.value } })}>
+            {AI_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            <option value="__custom">Lainnya…</option>
+          </select>
+          {(custom || s.aiModel === '') && (
+            <input className="fi" style={{ marginTop: 6 }} placeholder="mis. claude-opus-5" value={s.aiModel} onChange={set('aiModel')} />
+          )}
+        </div>
+        <div className="field-hint" style={{ marginBottom: 10 }}>
+          Yang dikirim ke Claude hanya ringkasan data kos (nama, kamar, tagihan, keuangan). NIK, alamat, nomor WhatsApp, dan foto tidak dikirim.
+        </div>
+        <button className="btn btn-g btn-sm" onClick={test} disabled={!s.aiApiKeySet || busy} title={s.aiApiKeySet ? '' : 'Simpan API key dulu'}>{busy ? 'Menguji…' : 'Uji Koneksi'}</button>
       </div>
     </div>
   );

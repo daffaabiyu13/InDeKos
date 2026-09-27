@@ -7,6 +7,7 @@ import { ToastProvider, useToast } from './components/Toast.jsx';
 import { ConfirmProvider } from './components/Confirm.jsx';
 import { SettingsProvider, useSettings } from './components/Settings.jsx';
 import { AuthProvider, RequireAuth, RequirePemilik, useAuth } from './components/Auth.jsx';
+import { AIProvider, AIPanel, AIChat, AIFab } from './components/AI.jsx';
 import { api } from './api.js';
 import { PHONE, TABLET, useMediaQuery, useScrollLock, useAutoTableLabels } from './responsive.js';
 
@@ -42,7 +43,7 @@ function buildTitles(kosName) {
     '/pengeluaran': ['Pengeluaran', 'Input manual atau scan struk'],
     '/pelanggaran': ['Pelanggaran', 'Kategori custom · riwayat disimpan 1 tahun'],
     '/mantan': ['Mantan Penghuni', 'Arsip penghuni yang sudah keluar'],
-    '/ai': ['AI Analisa', 'Powered by InDeKos AI'],
+    '/ai': ['AI Analisa', 'Tanya jawab & insight dari data kos'],
     '/pengaturan': ['Pengaturan', 'Konfigurasi properti, pembayaran & integrasi'],
     '/akun': ['Akun', 'Password & pengguna'],
   };
@@ -138,9 +139,13 @@ function Layout({ version, refresh }) {
           </div>
         </header>
         <div className="cnt" ref={cntRef}>
+          <AIPanel version={version} />
           <Outlet />
         </div>
       </div>
+
+      <AIFab />
+      <AIChat />
 
       {phone && (
         <nav className="bnav" aria-label="Navigasi utama">
@@ -173,6 +178,7 @@ function ProtectedApp() {
   const p = { version, onChange: refresh };
 
   return (
+    <AIProvider version={version}>
     <Routes>
       <Route element={<Layout version={version} refresh={refresh} />}>
         <Route index element={<Dashboard {...p} />} />
@@ -186,12 +192,13 @@ function ProtectedApp() {
         <Route path="pengeluaran" element={<Pengeluaran {...p} />} />
         <Route path="pelanggaran" element={<Pelanggaran {...p} />} />
         <Route path="mantan" element={<Mantan {...p} />} />
-        <Route path="ai" element={<AIAnalisa />} />
+        <Route path="ai" element={<AIAnalisa {...p} />} />
         <Route path="pengaturan" element={isPemilik ? <Pengaturan onSaved={refresh} /> : <RequirePemilik />} />
         <Route path="akun" element={<Akun />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </AIProvider>
   );
 }
 

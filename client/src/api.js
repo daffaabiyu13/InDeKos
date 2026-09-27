@@ -135,6 +135,8 @@ export const api = {
   gcalDisconnect: () => post('/gcal/disconnect'),
 
   // AI (mock)
-  aiInsights: () => get('/ai/insights'),
-  aiChat: (message) => post('/ai/chat', { message }),
+  aiStatus: () => get('/ai/status'),
+  aiInsights: (scope, id) => get(`/ai/insights?${qs({ scope, id })}`),
+  aiChat: (d) => post('/ai/chat', d),
+  aiTest: () => post('/ai/test'),
 };

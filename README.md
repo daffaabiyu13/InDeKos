@@ -63,9 +63,11 @@ npm run build && npm start   # produksi: Express menyajikan API + hasil build
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | — | Wajib untuk sinkron Google Calendar |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:4000/api/gcal/callback` | Redirect OAuth (harus sama dengan di Google Cloud) |
 | `DISABLE_SCHEDULER` | — | Matikan job 30-menitan (untuk test) |
+| `ANTHROPIC_API_KEY` | — | API key Claude untuk AI Asisten (alternatif mengisi di Pengaturan) |
+| `AI_MODEL` | `claude-opus-5` | Model default AI bila belum diatur di Pengaturan |
 
-Token WhatsApp, Midtrans Server Key, dan refresh token Google **disimpan di
-server dan tidak pernah dikirim ke browser**.
+Token WhatsApp, Midtrans Server Key, refresh token Google, dan API key Claude
+**disimpan di server dan tidak pernah dikirim ke browser**.
 
 ## Penagihan
 
@@ -121,6 +123,34 @@ dihapus) dengan pengingat H-3. Kalender internal ada di **Pembayaran → Kalende
   pertama kali mengunduh data bahasa dari CDN). Total, tanggal, toko, dan
   kategori diisi otomatis dan tetap bisa diedit sebelum disimpan.
 
+## AI Asisten (di setiap menu)
+
+Setiap menu punya panel **AI Insight** di bagian atas dan tombol **Tanya AI**
+(melayang di pojok kanan bawah):
+
+| Menu | Contoh insight |
+| ---- | -------------- |
+| Dashboard | prioritas hari ini, hunian, capaian pemasukan, penghuni perlu perhatian |
+| Penghuni / Detail | skor risiko (tunggakan, keterlambatan, pelanggaran, pengajuan keluar), data belum lengkap, draf pesan WA |
+| Kamar | kamar kosong + lama kosong + potensi pendapatan hilang, keterisian per tipe |
+| Pembayaran | prioritas penagihan, tingkat penagihan bulan ini, jatuh tempo 7 hari |
+| Keuangan | laba, tren 6 bulan, perkiraan pemasukan bulan depan |
+| Pengeluaran | perbandingan bulan lalu, lonjakan per kategori, kemungkinan data ganda |
+| Pendaftaran | skor kelengkapan pendaftar (KTP, selfie, verifikasi wajah, kontak darurat) + saran kamar |
+| Pengajuan Keluar / Mantan | tunggakan sebelum keluar, alasan keluar, rating, kandidat testimoni |
+| Pelanggaran | kategori terbanyak, pelanggar berulang → saran naik SP |
+| Pengaturan / Akun | audit konfigurasi (WA, QRIS, URL publik), password bawaan |
+
+- **Mode lokal (tanpa API key)** — insight & jawaban dihitung langsung dari
+  database (`server/src/aiData.js`). Gratis dan selalu jalan.
+- **Mode Claude** — isi API key di **Pengaturan → AI Asisten** (atau env
+  `ANTHROPIC_API_KEY`). Pertanyaan bebas dijawab Claude (default `claude-opus-5`,
+  dengan fallback otomatis server-side bila permintaan ditolak) memakai ringkasan
+  data menu yang sedang dibuka. **NIK, alamat, nomor WhatsApp, dan foto tidak
+  dikirim.** Bila Claude gagal (key salah, limit), jawaban otomatis beralih ke
+  mode lokal. Dibatasi 20 pertanyaan/menit per pengguna.
+- AI bisa dimatikan total dari Pengaturan.
+
 ## Pelanggaran
 
 Kategori bisa ditambah sendiri (tingkat ringan/sedang/berat + SP default).
@@ -143,10 +173,12 @@ server/src/
   repo.js      rooms/residents/dashboard notify.js    WhatsApp gateway & reminder
   settings.js  setting (rahasia di-mask) gcal.js      Google Calendar sync
   uploads.js   foto (validasi magic byte) qris.js     QRIS statis → dinamis
-server/test/   api.test.mjs, integration.test.mjs, run.mjs
+  aiData.js    insight per menu + jawaban lokal       ai.js  tanya jawab Claude
+server/test/   api.test.mjs, integration.test.mjs, ai.test.mjs, run.mjs
 client/src/
   pages/       Dashboard, Penghuni, ResidentDetail, Kamar, Pembayaran, ...
                publik: FormPendaftaran, Bayar, InvoicePublic, FormKeluar, Login
+  components/AI.jsx  panel insight, chat & tombol Tanya AI di setiap menu
   faceVerify.js, ocr.js, receiptParser.js
 ```
 
