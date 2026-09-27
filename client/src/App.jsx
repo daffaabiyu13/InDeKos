@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Routes, Route, Outlet, useLocation, Navigate } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Routes, Route, Outlet, useLocation, Navigate, NavLink } from 'react-router-dom';
 import Sidebar from './components/Sidebar.jsx';
 import AddResidentModal from './components/AddResidentModal.jsx';
 import { Icons } from './components/icons.jsx';
@@ -8,6 +8,7 @@ import { ConfirmProvider } from './components/Confirm.jsx';
 import { SettingsProvider, useSettings } from './components/Settings.jsx';
 import { AuthProvider, RequireAuth, RequirePemilik, useAuth } from './components/Auth.jsx';
 import { api } from './api.js';
+import { PHONE, TABLET, useMediaQuery, useScrollLock, useAutoTableLabels } from './responsive.js';
 
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -47,15 +48,31 @@ function buildTitles(kosName) {
   };
 }
 
+// Menu utama di bottom navigation (HP). Sisanya ada di drawer "Menu".
+const BOTTOM_NAV = [
+  { to: '/', key: 'dashboard', label: 'Beranda', end: true },
+  { to: '/penghuni', key: 'penghuni', label: 'Penghuni' },
+  { to: '/kamar', key: 'kamar', label: 'Kamar' },
+  { to: '/pembayaran', key: 'pembayaran', label: 'Bayar', badge: 'pendingConfirm' },
+];
+
 function Layout({ version, refresh }) {
   const { pathname } = useLocation();
   const toast = useToast();
   const { kosName } = useSettings();
-  const [collapsed, setCollapsed] = useState(() => {
+  const phone = useMediaQuery(PHONE);
+  const tablet = useMediaQuery(TABLET);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
     try { return localStorage.getItem('indekos-sb') === '1'; } catch { return false; }
   });
+  const [tabletOpen, setTabletOpen] = useState(false); // tablet: rail ikon, dibuka sebagai overlay
+  const [drawer, setDrawer] = useState(false); // HP: menu geser dari kiri
   const [modalOpen, setModalOpen] = useState(false);
   const [counts, setCounts] = useState({});
+  const cntRef = useRef(null);
+
+  useAutoTableLabels(cntRef);
+  useScrollLock(phone && drawer);
 
   useEffect(() => {
     api.dashboard().then((d) => setCounts({
@@ -67,43 +84,83 @@ function Layout({ version, refresh }) {
     })).catch(() => {});
   }, [version, pathname]);
 
+  // Pindah halaman → tutup menu & mulai dari atas.
+  useEffect(() => { setDrawer(false); setTabletOpen(false); window.scrollTo(0, 0); }, [pathname]);
+
+  const overlayOpen = (phone && drawer) || (!phone && tablet && tabletOpen);
+  const closeOverlay = useCallback(() => { setDrawer(false); setTabletOpen(false); }, []);
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') closeOverlay(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [overlayOpen, closeOverlay]);
+
+  function toggleSidebar() {
+    if (phone) setDrawer(false);
+    else if (tablet) setTabletOpen((o) => !o);
+    else {
+      const next = !desktopCollapsed;
+      setDesktopCollapsed(next);
+      try { localStorage.setItem('indekos-sb', next ? '1' : '0'); } catch { /* ignore */ }
+    }
+  }
+
+  const collapsed = !phone && (tablet ? !tabletOpen : desktopCollapsed);
   const titles = buildTitles(kosName);
   const [title, sub] = titles[pathname] || (pathname.startsWith('/penghuni/') ? ['Detail Penghuni', kosName] : ['InDeKos', '']);
+  const menuBadge = (counts.pendingApplications || 0) + (counts.pendingExits || 0);
+  const notify = () => toast(`🔔 ${counts.arrears || 0} penghuni menunggak · ${counts.pendingConfirm || 0} pembayaran menunggu verifikasi · ${counts.pendingApplications || 0} pendaftaran · ${counts.pendingExits || 0} pengajuan keluar`);
 
   return (
-    <div className={`app${collapsed ? ' sb-c' : ''}`}>
-      <Sidebar
-        collapsed={collapsed}
-        kosName={kosName}
-        counts={counts}
-        onToggle={() => {
-          const next = !collapsed;
-          setCollapsed(next);
-          try { localStorage.setItem('indekos-sb', next ? '1' : '0'); } catch { /* ignore */ }
-        }}
-      />
+    <div className={`app${collapsed ? ' sb-c' : ''}${phone && drawer ? ' m-open' : ''}${!phone && tablet && tabletOpen ? ' t-open' : ''}`}>
+      <Sidebar collapsed={collapsed} mobile={phone} kosName={kosName} counts={counts} onToggle={toggleSidebar} />
+      {overlayOpen && <div className="sb-backdrop" onClick={closeOverlay} aria-hidden="true" />}
       <div className="main">
         <header className="tb">
-          <div>
+          {phone && (
+            <button className="tb-icon" onClick={() => setDrawer(true)} aria-label="Buka menu" aria-expanded={drawer}>
+              <Icons.menu />{menuBadge ? <span className="ndot" /> : null}
+            </button>
+          )}
+          <div className="tb-text">
             <div className="tb-title">{title}</div>
             <div className="tb-sub">{sub}</div>
           </div>
           <div className="tb-r">
-            <button
-              className="notif-btn"
-              title="Notifikasi"
-              onClick={() => toast(`🔔 ${counts.arrears || 0} penghuni menunggak · ${counts.pendingConfirm || 0} pembayaran menunggu verifikasi · ${counts.pendingApplications || 0} pendaftaran · ${counts.pendingExits || 0} pengajuan keluar`)}
-            >
+            <button className="notif-btn" title="Notifikasi" aria-label="Notifikasi" onClick={notify}>
               <Icons.bell />
               {(counts.pendingConfirm || counts.pendingApplications || counts.pendingExits) ? <div className="ndot" /> : null}
             </button>
-            <button className="btn btn-p btn-sm" onClick={() => setModalOpen(true)}>+ Tambah Penghuni</button>
+            {phone
+              ? <button className="tb-icon tb-add" onClick={() => setModalOpen(true)} aria-label="Tambah penghuni"><Icons.plus /></button>
+              : <button className="btn btn-p btn-sm" onClick={() => setModalOpen(true)}>+ Tambah Penghuni</button>}
           </div>
         </header>
-        <div className="cnt">
+        <div className="cnt" ref={cntRef}>
           <Outlet />
         </div>
       </div>
+
+      {phone && (
+        <nav className="bnav" aria-label="Navigasi utama">
+          {BOTTOM_NAV.map((it) => {
+            const Icon = Icons[it.key];
+            const badge = it.badge ? counts[it.badge] : 0;
+            return (
+              <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => `bnav-i${isActive ? ' on' : ''}`}>
+                <span className="bnav-ic"><Icon />{badge ? <span className="bnav-b">{badge}</span> : null}</span>
+                <span>{it.label}</span>
+              </NavLink>
+            );
+          })}
+          <button className={`bnav-i${drawer ? ' on' : ''}`} onClick={() => setDrawer(true)} aria-label="Menu lainnya">
+            <span className="bnav-ic"><Icons.more />{menuBadge ? <span className="bnav-b">{menuBadge}</span> : null}</span>
+            <span>Menu</span>
+          </button>
+        </nav>
+      )}
+
       {modalOpen && <AddResidentModal onClose={() => setModalOpen(false)} onAdded={refresh} />}
     </div>
   );

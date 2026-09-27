@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Icons } from './icons.jsx';
+import { useScrollLock } from '../responsive.js';
 
 const ConfirmCtx = createContext(() => Promise.resolve(false));
 
@@ -11,6 +12,7 @@ export function useConfirm() {
 // Usage:  const ok = await confirm({ title, message, confirmText, danger });
 export function ConfirmProvider({ children }) {
   const [state, setState] = useState(null); // { opts, resolve }
+  useScrollLock(Boolean(state));
 
   const confirm = useCallback((opts) => {
     const normalized = typeof opts === 'string' ? { message: opts } : opts || {};

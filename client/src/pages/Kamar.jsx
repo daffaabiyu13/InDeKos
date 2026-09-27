@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast.jsx';
 import { useConfirm } from '../components/Confirm.jsx';
 import { useAuth } from '../components/Auth.jsx';
 import Modal from '../components/Modal.jsx';
+import { revealOnSmall } from '../responsive.js';
 
 const STATUS = {
   oc: { label: 'Terisi', cls: 'oc' },
@@ -61,7 +62,7 @@ export default function Kamar({ version, onChange }) {
                 <div className="sec-hd"><div className="sec-hd-lbl">Lantai {fl}</div><div className="sec-hd-line" /></div>
                 <div className="rg">
                   {shown.filter((r) => r.floor === fl).map((r) => (
-                    <button key={r.number} className={`rc ${STATUS[r.status].cls}${selected === r.number ? ' sel' : ''}`} onClick={() => setSelected(r.number)}
+                    <button key={r.number} className={`rc ${STATUS[r.status].cls}${selected === r.number ? ' sel' : ''}`} onClick={() => { setSelected(r.number); revealOnSmall('room-detail'); }}
                       title={`Kamar ${r.number} · ${STATUS[r.status].label}`}>
                       <div className="rc-n">{r.number}</div>
                       <div>{STATUS[r.status].label}</div>
@@ -74,7 +75,7 @@ export default function Kamar({ version, onChange }) {
           </div>
         </div>
 
-        <div className="card">
+        <div className="card" id="room-detail">
           <div className="ch"><div className="ct">Detail Kamar</div></div>
           <div className="cb">
             {!room ? <div className="empty">Klik kamar di denah untuk melihat detail</div> : <RoomDetail room={room} types={types || []} reload={reload} />}

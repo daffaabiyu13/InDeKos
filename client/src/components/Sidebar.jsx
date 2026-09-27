@@ -42,18 +42,19 @@ const groups = [
   },
 ];
 
-export default function Sidebar({ collapsed, onToggle, kosName, counts = {} }) {
+export default function Sidebar({ collapsed, mobile = false, onToggle, kosName, counts = {} }) {
   const { user, isPemilik, logout } = useAuth();
   return (
-    <aside className="sb">
+    <aside className="sb" aria-label="Menu">
       <div className="sb-logo">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <div className="logo-row">
             <div className="logo-icon">In</div>
             <div className="logo-text">Inde<em>Kos</em></div>
           </div>
-          <button className="sb-tog" onClick={onToggle} title={collapsed ? 'Perbesar sidebar' : 'Perkecil sidebar'}>
-            <Icons.chevron />
+          <button className="sb-tog" onClick={onToggle} title={mobile ? 'Tutup menu' : collapsed ? 'Perbesar sidebar' : 'Perkecil sidebar'}
+            aria-label={mobile ? 'Tutup menu' : collapsed ? 'Perbesar sidebar' : 'Perkecil sidebar'}>
+            {mobile ? <Icons.close /> : <Icons.chevron />}
           </button>
         </div>
         <div className="kos-chip">
@@ -95,7 +96,7 @@ export default function Sidebar({ collapsed, onToggle, kosName, counts = {} }) {
             <div className="ua-name">{user?.name}</div>
             <div className="ua-role">{user?.role === 'pemilik' ? 'Pemilik Kos' : 'Admin'}</div>
           </div>
-          <button className="ua-out" onClick={logout} title="Keluar"><Icons.logout /></button>
+          <button className="ua-out" onClick={logout} title="Keluar" aria-label="Keluar dari akun"><Icons.logout /></button>
         </div>
       </div>
     </aside>

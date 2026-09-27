@@ -9,6 +9,7 @@ import { useAuth } from '../components/Auth.jsx';
 import { Icons } from '../components/icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { InvoiceActions, PayModal } from './ResidentDetail.jsx';
+import { revealOnSmall } from '../responsive.js';
 
 const TABS = [['tagihan', 'Tagihan'], ['kalender', 'Kalender Penagihan'], ['promo', 'Promo'], ['charge', 'Charge & Denda'], ['notif', 'Notifikasi WA']];
 
@@ -183,7 +184,7 @@ function CalendarTab({ version, reload }) {
                 const items = byDay[d] || [];
                 const worst = items.some((x) => x.state === 'terlambat') ? 'late' : items.some((x) => x.status === 'menunggu') ? 'wait' : items.some((x) => x.status === 'unpaid') ? 'due' : items.length ? 'paid' : '';
                 return (
-                  <button key={d} className={`cal-d${iso === today ? ' today' : ''}${day === d ? ' sel' : ''}${worst ? ` has ${worst}` : ''}`} onClick={() => setDay(d)} aria-label={`${d} ${BULAN_PANJANG[m - 1]}: ${items.length} tagihan`}>
+                  <button key={d} className={`cal-d${iso === today ? ' today' : ''}${day === d ? ' sel' : ''}${worst ? ` has ${worst}` : ''}`} onClick={() => { setDay(d); revealOnSmall('cal-day'); }} aria-label={`${d} ${BULAN_PANJANG[m - 1]}: ${items.length} tagihan`}>
                     <span className="cal-n">{d}</span>
                     {items.length > 0 && <span className="cal-c">{items.length}</span>}
                   </button>
@@ -201,7 +202,7 @@ function CalendarTab({ version, reload }) {
       </div>
 
       <div>
-        <div className="card mb">
+        <div className="card mb" id="cal-day">
           <div className="ch"><div className="ct">{day ? `Tagihan ${day} ${BULAN_PANJANG[m - 1]}` : 'Pilih tanggal'}</div></div>
           <div className="cb" style={{ paddingTop: 4 }}>
             {!day && <div className="empty">Klik tanggal untuk melihat tagihan yang jatuh tempo.</div>}

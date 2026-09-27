@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { Icons } from './icons.jsx';
+import { useScrollLock } from '../responsive.js';
 
 export default function Modal({ title, onClose, children, footer, width = 520 }) {
+  useScrollLock();
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
