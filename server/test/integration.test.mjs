@@ -27,8 +27,16 @@ http.createServer((req, res) => {
     if (req.url === '/token') {
       tokenCalls++;
       const p = new URLSearchParams(body);
+      // Kode "id:<sub>:<email>:<verified>" = login Google (tanpa refresh token).
+      if (p.get('grant_type') === 'authorization_code' && String(p.get('code')).startsWith('id:')) return json(200, { access_token: `ID|${p.get('code')}`, expires_in: 3600 });
       if (p.get('grant_type') === 'authorization_code') return json(200, { access_token: 'AT1', expires_in: 3600, refresh_token: 'RT1' });
       return json(200, { access_token: 'AT2', expires_in: 3600 });
+    }
+    if (req.url === '/userinfo') {
+      const t = String(req.headers.authorization || '');
+      if (!t.startsWith('Bearer ID|id:')) return json(401, { error: 'invalid_token' });
+      const [, sub, email, verified] = t.slice('Bearer ID|'.length).split(':');
+      return json(200, { sub, email, email_verified: verified === 'true', name: `User ${sub}` });
     }
     if (req.url === '/revoke' || req.url.startsWith('/revoke?')) return json(200, {});
     const m = req.url.match(/^\/calendars\/([^/]+)\/events(?:\/([^/?]+))?/);
@@ -126,6 +134,97 @@ ok(!events.has(inv2.gcalEventId), 'voided → event deleted');
 r = await call('POST', '/gcal/disconnect', null, P);
 r = await call('GET', '/gcal/status', null, P);
 ok(r.data.connected === false && r.data.syncedEvents === 0, 'disconnect clears token & event ids');
+
+console.log('— Login dengan Google');
+const q = (url) => new URL(url).searchParams;
+const PUB = (await call('GET', '/settings', null, P)).data.publicUrl.replace(/\/+$/, '');
+const NONCE = 'nonce-browser-A-123456';
+r = await call('GET', '/auth/google/status');
+ok(r.data.enabled === true, 'status: login Google aktif (client id terpasang)');
+r = await call('GET', '/auth/google/url?nonce=pendek');
+ok(r.status === 400, 'nonce tidak valid ditolak');
+const loginState = async (nonce = NONCE) => {
+  const u = (await call('GET', `/auth/google/url?nonce=${nonce}`)).data.url;
+  return { url: u, state: q(u).get('state') };
+};
+let g = await loginState();
+ok(q(g.url).get('scope') === 'openid email profile' && q(g.url).get('prompt') === 'select_account' && !q(g.url).get('access_type'), 'URL login: hanya scope identitas, tanpa akses offline');
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-x:orang@gmail.com:true')}`);
+ok(r.status === 302 && r.location.startsWith(`${PUB}/login?google=error`) && /belum%20terdaftar/.test(r.location), 'akun Google tak terdaftar ditolak');
+const users = (await call('GET', '/users', null, P)).data;
+const adminU = users.find((u) => u.username === 'admin');
+const pemU = users.find((u) => u.username === 'pemilik');
+r = await call('PUT', `/users/${adminU.id}`, { email: 'Admin.Kos@Gmail.com' }, P);
+ok(r.status === 200 && r.data.email === 'admin.kos@gmail.com' && r.data.googleLinked === false, 'pemilik mengisi email Google admin (disimpan huruf kecil)');
+r = await call('PUT', `/users/${pemU.id}`, { email: 'admin.kos@gmail.com' }, P);
+ok(r.status === 409, 'email yang sama tidak bisa dipakai dua akun');
+r = await call('PUT', `/users/${pemU.id}`, { email: 'bukan-email' }, P);
+ok(r.status === 400, 'format email divalidasi');
+g = await loginState();
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-admin:admin.kos@gmail.com:false')}`);
+ok(r.location.includes('google=error'), 'email Google belum terverifikasi tidak dicocokkan');
+g = await loginState();
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-admin:admin.kos@gmail.com:true')}`);
+let gcode = q(r.location).get('gcode');
+ok(r.location.startsWith(`${PUB}/login?gcode=`) && gcode, 'admin terdaftar → kembali ke /login dengan kode sekali pakai');
+r = await call('POST', '/auth/google/exchange', { code: gcode, nonce: 'nonce-browser-LAIN-99999' });
+ok(r.status === 401, 'kode tidak bisa ditukar dari browser lain (nonce beda)');
+r = await call('POST', '/auth/google/exchange', { code: gcode, nonce: NONCE });
+ok(r.status === 401, 'kode hangus setelah percobaan pertama');
+g = await loginState();
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-admin:email-baru@gmail.com:true')}`);
+gcode = q(r.location).get('gcode');
+r = await call('POST', '/auth/google/exchange', { code: gcode, nonce: NONCE });
+const AG = r.data?.token;
+ok(r.status === 200 && r.data.user.role === 'admin', 'login admin via Google → token sesi (dicocokkan lewat ID Google yang sudah tertaut)');
+r = await call('GET', '/auth/me', null, AG);
+ok(r.data.user.username === 'admin' && r.data.user.googleLinked === true, 'token Google bekerja, akun tertaut');
+r = await call('POST', '/auth/google/exchange', { code: gcode, nonce: NONCE });
+ok(r.status === 401, 'kode sekali pakai tidak bisa dipakai ulang');
+ok((await call('GET', '/gcal/status', null, P)).data.connected === false, 'admin login tidak menyambungkan kalender');
+
+await call('PUT', `/users/${pemU.id}`, { email: 'pemilik.kos@gmail.com' }, P);
+g = await loginState();
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-pem:pemilik.kos@gmail.com:true')}`);
+const consent = r.location;
+ok(consent.startsWith('https://accounts.google.com/') && q(consent).get('scope').includes('calendar.events') && q(consent).get('login_hint') === 'pemilik.kos@gmail.com' && q(consent).get('access_type') === 'offline',
+  'pemilik + kalender belum terhubung → langsung ke izin Google Calendar');
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(q(consent).get('state'))}&code=cal-code`);
+ok(r.location.startsWith(`${PUB}/login?gcode=`) && r.location.includes('gcal=ok'), 'izin kalender → kembali ke login dengan status gcal=ok');
+ok((await call('GET', '/gcal/status', null, P)).data.connected === true, 'kalender kos otomatis terhubung');
+r = await call('POST', '/auth/google/exchange', { code: q(r.location).get('gcode'), nonce: NONCE });
+ok(r.status === 200 && r.data.user.role === 'pemilik', 'pemilik masuk setelah kalender tersambung');
+g = await loginState();
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-pem:pemilik.kos@gmail.com:true')}`);
+ok(r.location.startsWith(`${PUB}/login?gcode=`), 'login pemilik berikutnya tidak meminta izin kalender lagi');
+await call('POST', '/gcal/disconnect', null, P);
+g = await loginState();
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(g.state)}&code=${encodeURIComponent('id:sub-pem:pemilik.kos@gmail.com:true')}`);
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(q(r.location).get('state'))}&error=access_denied`);
+ok(r.location.includes('gcal=skip') && (await call('POST', '/auth/google/exchange', { code: q(r.location).get('gcode'), nonce: NONCE })).status === 200,
+  'izin kalender ditolak → tetap bisa masuk');
+
+console.log('— Tautkan akun Google (menu Akun)');
+r = await call('POST', '/auth/google/unlink', null, AG);
+r = await call('GET', '/auth/me', null, AG);
+ok(r.data.user.googleLinked === false && r.data.user.email === '', 'lepas tautan Google');
+r = await call('POST', '/auth/google/link', null, AG);
+const linkState = q(r.data.url).get('state');
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(linkState)}&code=${encodeURIComponent('id:sub-pem:pemilik.kos@gmail.com:true')}`);
+ok(r.location.startsWith(`${PUB}/akun?google=error`), 'akun Google milik pengguna lain tidak bisa ditautkan');
+r = await call('POST', '/auth/google/link', null, AG);
+r = await call('GET', `/gcal/callback?state=${encodeURIComponent(q(r.data.url).get('state'))}&code=${encodeURIComponent('id:sub-admin2:admin.baru@gmail.com:true')}`);
+ok(r.location === `${PUB}/akun?google=linked`, 'tautkan akun Google baru');
+r = await call('GET', '/auth/me', null, AG);
+ok(r.data.user.email === 'admin.baru@gmail.com' && r.data.user.googleLinked, 'email & tautan tersimpan');
+r = await call('POST', '/auth/google/link');
+ok(r.status === 401, 'tautkan wajib login');
+r = await call('POST', '/users', { username: 'staf.google', name: 'Staf', role: 'admin', email: 'staf@gmail.com' }, P);
+ok(r.status === 201 && r.data.email === 'staf@gmail.com', 'akun baru khusus Google (tanpa password)');
+r = await call('POST', '/users', { username: 'staf.dua', role: 'admin' }, P);
+ok(r.status === 400, 'tanpa email & tanpa password ditolak');
+r = await call('POST', '/auth/login', { username: 'staf.google', password: '' });
+ok(r.status === 401, 'akun khusus Google tidak bisa login dengan password kosong');
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

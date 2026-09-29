@@ -43,6 +43,11 @@ export const api = {
   // Auth & users
   login: (username, password) => post('/auth/login', { username, password }),
   me: () => get('/auth/me'),
+  googleStatus: () => get('/auth/google/status'),
+  googleUrl: (nonce) => get(`/auth/google/url?${qs({ nonce })}`),
+  googleExchange: (code, nonce) => post('/auth/google/exchange', { code, nonce }),
+  googleLink: () => post('/auth/google/link'),
+  googleUnlink: () => post('/auth/google/unlink'),
   changePassword: (current, next) => post('/auth/password', { current, next }),
   users: () => get('/users'),
   addUser: (d) => post('/users', d),

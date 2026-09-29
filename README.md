@@ -38,6 +38,15 @@ npm run build && npm start   # produksi: Express menyajikan API + hasil build
 | **Pemilik** | `pemilik` | `pemilik123`  | Semua fitur + Pengaturan, harga/tipe kamar, promo, akun pengguna, integrasi |
 | **Admin**   | `admin`   | `admin123`    | Operasional harian (penghuni, tagihan, pengeluaran, pelanggaran, pendaftaran) |
 
+**Masuk dengan Google (opsional).** Bila `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+terpasang, halaman login menampilkan tombol **Masuk dengan Google** di samping
+username/password. Hanya akun yang **sudah terdaftar** yang bisa masuk: pemilik
+mengisi *Email Google* pengguna di menu **Akun**, atau pengguna menautkan akun
+Google-nya sendiri (Akun → Masuk dengan Google). Saat **pemilik** masuk dengan
+Google dan kalender kos belum terhubung, izin **Google Calendar langsung diminta**
+sehingga kalender tersambung sekaligus. Akun baru boleh dibuat tanpa password
+bila diisi email Google (khusus login Google).
+
 > ⚠️ **Segera ganti password** di menu **Akun**. Password awal bisa diatur lewat
 > env `INIT_PEMILIK_PASSWORD` / `INIT_ADMIN_PASSWORD` sebelum server pertama kali
 > dijalankan. Pemilik dapat menambah/menghapus pengguna di menu Akun.
@@ -107,7 +116,13 @@ dan tidak pernah terkirim dua kali. Tanpa gateway, tombol **Kirim** membuka wa.m
 2. Buat **OAuth client ID** (tipe *Web application*), tambahkan redirect URI
    `http://localhost:4000/api/gcal/callback` (atau domain Anda).
 3. Set `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET`, restart server.
-4. Login sebagai pemilik → **Pengaturan → Google Calendar → Hubungkan Akun Google**.
+4. Login sebagai pemilik → **Pengaturan → Google Calendar → Hubungkan Akun Google**
+   — atau cukup **Masuk dengan Google** sebagai pemilik (kalender langsung terhubung).
+
+Kredensial yang sama dipakai untuk **login Google** (redirect URI sama, tidak perlu
+menambah URI baru). Di OAuth consent screen, tambahkan email pengguna sebagai
+*Test users* selama status masih *Testing* (izin kedaluwarsa tiap 7 hari), atau
+klik *Publish app* agar permanen. Semua gratis — tidak perlu billing Google Cloud.
 
 Setiap tagihan menjadi event sepanjang hari di tanggal jatuh tempo (merah =
 belum bayar, kuning = menunggu verifikasi, hijau ✅ = lunas; dibatalkan = event
@@ -174,6 +189,7 @@ server/src/
   settings.js  setting (rahasia di-mask) gcal.js      Google Calendar sync
   uploads.js   foto (validasi magic byte) qris.js     QRIS statis → dinamis
   aiData.js    insight per menu + jawaban lokal       ai.js  tanya jawab Claude
+  googleAuth.js  login dengan Google (akun terdaftar saja, kode sekali pakai + nonce)
 server/test/   api.test.mjs, integration.test.mjs, ai.test.mjs, run.mjs
 client/src/
   pages/       Dashboard, Penghuni, ResidentDetail, Kamar, Pembayaran, ...

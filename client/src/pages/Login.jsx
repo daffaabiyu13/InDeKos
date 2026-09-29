@@ -1,19 +1,58 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../api.js';
 import { useAuth } from '../components/Auth.jsx';
 import { useSettings } from '../components/Settings.jsx';
+import { useToast } from '../components/Toast.jsx';
+import GoogleButton, { newNonce, takeNonce, rememberFrom, takeFrom } from '../components/GoogleButton.jsx';
+
+// Kode dari callback Google hanya boleh ditukar sekali (StrictMode menjalankan efek dua kali di dev).
+const handledCodes = new Set();
+
+const GCAL_NOTICE = {
+  ok: '📅 Google Calendar terhubung — tagihan sedang disinkronkan.',
+  skip: 'Google Calendar belum dihubungkan. Anda bisa menghubungkannya nanti di Pengaturan.',
+  error: '⚠️ Google Calendar gagal terhubung. Coba lagi di Pengaturan.',
+};
 
 export default function Login() {
-  const { user, login } = useAuth();
+  const { user, login, loginWithGoogle } = useAuth();
   const { kosName } = useSettings();
+  const toast = useToast();
   const nav = useNavigate();
   const loc = useLocation();
   const [form, setForm] = useState({ username: '', password: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [gBusy, setGBusy] = useState(false);
   const [show, setShow] = useState(false);
+  const [googleOn, setGoogleOn] = useState(false);
 
-  if (user) return <Navigate to={loc.state?.from || '/'} replace />;
+  useEffect(() => { api.googleStatus().then((d) => setGoogleOn(Boolean(d.enabled))).catch(() => {}); }, []);
+
+  // Kembali dari Google: ?gcode=… (berhasil) atau ?google=error&msg=…
+  useEffect(() => {
+    const p = new URLSearchParams(loc.search);
+    if (p.get('google') === 'error') {
+      setErr(p.get('msg') || 'Login Google gagal.');
+      nav('/login', { replace: true });
+      return;
+    }
+    const code = p.get('gcode');
+    if (!code || handledCodes.has(code)) return;
+    handledCodes.add(code);
+    const gcal = p.get('gcal');
+    setGBusy(true);
+    loginWithGoogle(code, takeNonce())
+      .then(() => {
+        if (gcal && GCAL_NOTICE[gcal]) toast(GCAL_NOTICE[gcal]);
+        nav(takeFrom(), { replace: true });
+      })
+      .catch((e) => { setErr(e.message); nav('/login', { replace: true }); })
+      .finally(() => setGBusy(false));
+  }, [loc.search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (user && !new URLSearchParams(loc.search).get('gcode')) return <Navigate to={loc.state?.from || '/'} replace />;
 
   async function submit(e) {
     e.preventDefault();
@@ -26,6 +65,19 @@ export default function Login() {
       setErr(e2.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function google() {
+    setErr('');
+    setGBusy(true);
+    try {
+      rememberFrom(loc.state?.from || '/');
+      const { url } = await api.googleUrl(newNonce());
+      window.location.assign(url);
+    } catch (e) {
+      setErr(e.message);
+      setGBusy(false);
     }
   }
 
@@ -44,10 +96,16 @@ export default function Login() {
           <p>Khusus pemilik & admin kos.</p>
         </div>
         {err && <div className="fp-alert" role="alert">⚠️ {err}</div>}
+        {googleOn && (
+          <>
+            <GoogleButton onClick={google} busy={gBusy} />
+            <div className="login-or"><span>atau dengan username</span></div>
+          </>
+        )}
         <form onSubmit={submit}>
           <div className="fg">
             <label className="fl" htmlFor="u">Username</label>
-            <input id="u" className="fi" autoComplete="username" autoFocus value={form.username}
+            <input id="u" className="fi" autoComplete="username" autoFocus={!googleOn} value={form.username}
               onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} required />
           </div>
           <div className="fg">

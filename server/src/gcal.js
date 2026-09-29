@@ -38,23 +38,33 @@ export function gcalStatus() {
   };
 }
 
-export function authUrl(state) {
+const USERINFO_URL = process.env.GOOGLE_USERINFO_URL || 'https://openidconnect.googleapis.com/v1/userinfo';
+export const LOGIN_SCOPE = 'openid email profile';
+
+// URL persetujuan Google. Default: izin kalender (offline → dapat refresh token).
+export function authUrl(state, { scope = SCOPE, offline = true, loginHint = '' } = {}) {
   const p = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: redirectUri(),
     response_type: 'code',
-    scope: SCOPE,
-    access_type: 'offline',
-    prompt: 'consent', // pastikan refresh_token dikirim
+    scope,
     include_granted_scopes: 'true',
     state,
   });
+  if (offline) {
+    p.set('access_type', 'offline');
+    p.set('prompt', 'consent'); // pastikan refresh_token dikirim
+  } else {
+    p.set('prompt', 'select_account');
+  }
+  if (loginHint) p.set('login_hint', loginHint);
   return `${AUTH_URL}?${p}`;
 }
 
 let cached = null; // { token, exp }
 
-export async function exchangeCode(code) {
+// Tukar authorization code → token (tanpa menyimpan apa pun).
+export async function tokenFromCode(code) {
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -65,6 +75,20 @@ export async function exchangeCode(code) {
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error_description || j.error || 'Gagal menukar kode OAuth.');
+  return j;
+}
+
+// Profil akun Google dari access token (dipakai untuk login).
+export async function userInfo(accessTokenValue) {
+  const res = await fetch(USERINFO_URL, { headers: { Authorization: `Bearer ${accessTokenValue}` }, signal: AbortSignal.timeout(15000) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || !j.sub) throw new Error('Gagal membaca profil akun Google.');
+  return { sub: String(j.sub), email: String(j.email || '').toLowerCase(), emailVerified: j.email_verified === true || j.email_verified === 'true', name: j.name || '' };
+}
+
+// Sambungkan kalender kos: simpan refresh token.
+export async function exchangeCode(code) {
+  const j = await tokenFromCode(code);
   if (!j.refresh_token) {
     throw new Error('Google tidak mengirim refresh token. Cabut akses InDeKos di akun Google Anda lalu hubungkan ulang.');
   }

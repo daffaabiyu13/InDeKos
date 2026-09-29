@@ -53,6 +53,7 @@ const b = await startServer({
   GOOGLE_REVOKE_URL: `http://localhost:${mock}/revoke`,
   GOOGLE_CALENDAR_API: `http://localhost:${mock}`,
   FONNTE_API_URL: `http://localhost:${mock}/fonnte/send`,
+  GOOGLE_USERINFO_URL: `http://localhost:${mock}/userinfo`,
 });
 failed += (await run('integration.test.mjs', [b.port, mock])) ? 1 : 0;
 b.stop();

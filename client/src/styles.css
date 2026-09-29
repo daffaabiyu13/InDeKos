@@ -488,6 +488,13 @@ button.fac:hover { border-color: var(--jade); color: var(--jade-d); }
 .login-page { align-items: center; }
 .login-card { max-width: 400px; }
 .pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: none; font-family: inherit; font-size: 11.5px; font-weight: 700; color: var(--jade-d); cursor: pointer; padding: 4px 6px; }
+.btn-google { width: 100%; justify-content: center; gap: 10px; padding: 11px; margin-top: 18px; font-size: 14px; font-weight: 700; background: #fff; color: #1f1f1f; border: 1.5px solid #DADCE0; }
+.btn-google:hover { background: #F7F8F8; border-color: #C6CACE; }
+.btn-google:disabled { opacity: .7; }
+.login-or { display: flex; align-items: center; gap: 10px; margin: 18px 0 4px; font-size: 11.5px; color: var(--t3); font-weight: 600; }
+.login-or::before, .login-or::after { content: ''; flex: 1; height: 1px; background: var(--bdr); }
+.g-link { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--bdr); border-radius: 10px; background: var(--surf2); }
+.g-link > div { flex: 1; min-width: 160px; font-size: 12.5px; line-height: 1.45; }
 .login-links { margin-top: 18px; text-align: center; font-size: 12px; color: var(--t2); display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
 .login-links a { color: var(--jade-d); font-weight: 700; }
 
@@ -818,7 +825,7 @@ code { overflow-wrap: anywhere; word-break: break-word; }
   .fp-card { border-radius: 0; min-height: 100dvh; box-shadow: none; padding: calc(18px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(28px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
   .login-page .fp-card { display: flex; flex-direction: column; justify-content: center; }
   .fp-intro h1 { font-size: 18px; }
-  .fp-submit { min-height: 50px; font-size: 15px; }
+  .fp-submit, .btn-google { min-height: 50px; font-size: 15px; }
   .inv-top { flex-wrap: wrap; }
   .paid-stamp { top: 70px; right: 16px; font-size: 20px; }
   .pay-qr img { width: min(240px, 70vw); height: auto; }

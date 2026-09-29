@@ -43,7 +43,18 @@ export function verifyToken(token) {
   }
 }
 
-const publicUser = (u) => ({ id: u.id, username: u.username, name: u.name, role: u.role });
+export const publicUser = (u) => ({ id: u.id, username: u.username, name: u.name, role: u.role, email: u.email || '', googleLinked: Boolean(u.googleSub) });
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// '' = kosongkan; undefined = tidak diubah; selain itu harus email valid & belum dipakai.
+function checkEmail(raw, selfId = 0) {
+  if (raw === undefined) return undefined;
+  const email = String(raw || '').trim().toLowerCase();
+  if (!email) return '';
+  if (!EMAIL_RE.test(email) || email.length > 254) throw Object.assign(new Error('Format email tidak valid.'), { status: 400 });
+  if (db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').get(email, selfId)) throw Object.assign(new Error('Email sudah dipakai akun lain.'), { status: 409 });
+  return email;
+}
 
 // Accepts `Authorization: Bearer <token>`. `?token=` is accepted only when
 // `allowQuery` is set (for <img src> of protected uploads).
@@ -113,7 +124,7 @@ authRouter.post('/auth/password', requireAuth, (req, res) => {
 
 // User management — pemilik only.
 authRouter.get('/users', requireAuth, requireRole('pemilik'), (_req, res) => {
-  res.json(db.prepare('SELECT id, username, name, role, createdAt FROM users ORDER BY id').all());
+  res.json(db.prepare('SELECT * FROM users ORDER BY id').all().map((u) => ({ ...publicUser(u), createdAt: u.createdAt })));
 });
 
 authRouter.post('/users', requireAuth, requireRole('pemilik'), (req, res) => {
@@ -121,10 +132,14 @@ authRouter.post('/users', requireAuth, requireRole('pemilik'), (req, res) => {
   const { name = '', role = 'admin', password = '' } = req.body || {};
   if (!/^[a-z0-9_.]{3,32}$/.test(username)) return res.status(400).json({ error: 'Username 3–32 karakter (huruf kecil, angka, _ .).' });
   if (!['pemilik', 'admin'].includes(role)) return res.status(400).json({ error: 'Peran tidak valid.' });
-  if (String(password).length < 8) return res.status(400).json({ error: 'Password minimal 8 karakter.' });
+  let email;
+  try { email = checkEmail(req.body?.email) || ''; } catch (e) { return res.status(e.status).json({ error: e.message }); }
+  // Password boleh kosong bila akun hanya login dengan Google (email wajib).
+  if (!(email && !password) && String(password).length < 8) return res.status(400).json({ error: 'Password minimal 8 karakter (atau isi email Google untuk login tanpa password).' });
   if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) return res.status(409).json({ error: 'Username sudah dipakai.' });
-  const info = db.prepare('INSERT INTO users(username,name,role,passwordHash,createdAt) VALUES(?,?,?,?,?)')
-    .run(username, name || username, role, hashPassword(password), nowStamp());
+  const pw = password || crypto.randomBytes(24).toString('base64url'); // acak & tidak diketahui siapa pun
+  const info = db.prepare('INSERT INTO users(username,name,role,passwordHash,email,createdAt) VALUES(?,?,?,?,?,?)')
+    .run(username, name || username, role, hashPassword(pw), email, nowStamp());
   res.status(201).json(publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid)));
 });
 
@@ -139,7 +154,11 @@ authRouter.put('/users/:id', requireAuth, requireRole('pemilik'), (req, res) => 
     return res.status(400).json({ error: 'Harus ada minimal satu akun pemilik.' });
   }
   if (password && String(password).length < 8) return res.status(400).json({ error: 'Password minimal 8 karakter.' });
+  let email;
+  try { email = checkEmail(req.body?.email, u.id); } catch (e) { return res.status(e.status).json({ error: e.message }); }
   db.prepare('UPDATE users SET name = ?, role = ? WHERE id = ?').run(name ?? u.name, role ?? u.role, u.id);
+  // Email diganti → tautan Google lama dilepas (harus login ulang dengan akun baru).
+  if (email !== undefined && email !== u.email) db.prepare("UPDATE users SET email = ?, googleSub = '' WHERE id = ?").run(email, u.id);
   if (password) db.prepare('UPDATE users SET passwordHash = ? WHERE id = ?').run(hashPassword(password), u.id);
   res.json(publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(u.id)));
 });

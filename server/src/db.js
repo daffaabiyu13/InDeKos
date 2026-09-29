@@ -225,6 +225,19 @@ db.exec(`
   );
 `);
 
+// Kolom tambahan (aditif, aman untuk database lama).
+function ensureColumn(table, col, def) {
+  if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+  }
+}
+ensureColumn('users', 'email', "TEXT NOT NULL DEFAULT ''"); // email Google untuk login
+ensureColumn('users', 'googleSub', "TEXT NOT NULL DEFAULT ''"); // ID akun Google yang ditautkan
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email != '';
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_gsub ON users(googleSub) WHERE googleSub != '';
+`);
+
 // node:sqlite's DatabaseSync has no .transaction() helper, so wrap
 // units of work in BEGIN/COMMIT manually. Nested calls reuse the outer tx.
 let depth = 0;

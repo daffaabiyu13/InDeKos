@@ -36,7 +36,17 @@ export function AuthProvider({ children }) {
     return u;
   }, []);
 
-  const value = { user, ready, login, logout, isPemilik: user?.role === 'pemilik' };
+  // Login Google: kode sekali pakai dari callback + nonce milik browser ini.
+  const loginWithGoogle = useCallback(async (code, nonce) => {
+    const { token, user: u } = await api.googleExchange(code, nonce);
+    tokenStore.set(token);
+    setUser(u);
+    return u;
+  }, []);
+
+  const refreshUser = useCallback(() => api.me().then((d) => setUser(d.user)).catch(() => {}), []);
+
+  const value = { user, ready, login, loginWithGoogle, refreshUser, logout, isPemilik: user?.role === 'pemilik' };
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
 

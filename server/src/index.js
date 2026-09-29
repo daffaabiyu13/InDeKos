@@ -18,6 +18,7 @@ import * as billing from './billing.js';
 import * as repo from './repo.js';
 import * as notify from './notify.js';
 import * as gcal from './gcal.js';
+import * as googleAuth from './googleAuth.js';
 import { saveImage, sendImage } from './uploads.js';
 import { generateDynamicQris, isValidQris } from './qris.js';
 import * as ai from './ai.js';
@@ -161,23 +162,39 @@ app.post('/api/payments/webhook', h((req, res) => {
 }));
 
 // OAuth callback Google — dipanggil browser setelah consent.
+// ── Login dengan Google (publik) ──
+app.get('/api/auth/google/status', (_req, res) => res.json({ enabled: gcal.gcalConfigured() }));
+app.get('/api/auth/google/url', h((req, res) => res.json({ url: googleAuth.loginUrl(req.query.nonce) })));
+app.post('/api/auth/google/exchange', h((req, res) => {
+  res.json(googleAuth.exchangeLoginCode(req.body?.code, req.body?.nonce));
+}));
+
+// Satu redirect URI untuk semua alur Google: kalender (gcal), login (glogin), tautkan akun (glink).
 app.get('/api/gcal/callback', h(async (req, res) => {
-  const back = `${String(getSettings().publicUrl || '').replace(/\/+$/, '')}/pengaturan`;
+  const base = String(getSettings().publicUrl || '').replace(/\/+$/, '');
   const state = verifyToken(req.query.state);
-  if (!state || state.typ !== 'gcal') return res.redirect(`${back}?gcal=error&msg=${encodeURIComponent('Sesi OAuth tidak valid.')}`);
-  if (req.query.error) return res.redirect(`${back}?gcal=error&msg=${encodeURIComponent(String(req.query.error))}`);
+  if (state?.typ === 'glogin') return res.redirect(await googleAuth.finishLogin(state, req.query));
+  if (state?.typ === 'glink') return res.redirect(await googleAuth.finishLink(state, req.query));
+  // Alur kalender. Bila datang dari login Google pemilik (state.gcode), kembali ke halaman login.
+  const back = state?.gcode ? `${base}/login?gcode=${encodeURIComponent(state.gcode)}&` : `${base}/pengaturan?`;
+  if (!state || state.typ !== 'gcal') return res.redirect(`${base}/pengaturan?gcal=error&msg=${encodeURIComponent('Sesi OAuth tidak valid.')}`);
+  if (req.query.error) return res.redirect(`${back}gcal=${state.gcode ? 'skip' : 'error'}&msg=${encodeURIComponent(String(req.query.error))}`);
   try {
     await gcal.exchangeCode(String(req.query.code || ''));
     gcal.syncInvoices().catch(() => {});
-    res.redirect(`${back}?gcal=ok`);
+    res.redirect(`${back}gcal=ok`);
   } catch (e) {
-    res.redirect(`${back}?gcal=error&msg=${encodeURIComponent(e.message)}`);
+    res.redirect(`${back}gcal=error&msg=${encodeURIComponent(e.message)}`);
   }
 }));
 
 // ═════════════ PROTECTED ═════════════
 app.get('/api/files/:name', allowQueryToken, requireAuth, sendImage);
 app.use('/api', requireAuth);
+
+// ── Tautkan / lepas akun Google (untuk login) ──
+app.post('/api/auth/google/link', h((req, res) => res.json({ url: googleAuth.linkUrl(req.user) })));
+app.post('/api/auth/google/unlink', h((req, res) => { googleAuth.unlink(req.user.id); res.json({ ok: true }); }));
 
 // ── Settings ──
 app.get('/api/settings', (_req, res) => res.json(getMaskedSettings()));
