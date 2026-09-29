@@ -114,6 +114,15 @@ berisi nomor invoice, nominal, metode, link kwitansi, dan tagihan berikutnya /
 sisa tunggakan. Tiap invoice hanya dikirimi satu kali (bisa kirim ulang manual lewat
 tombol **Bukti**); invoice yang sudah lunas sebelum fitur ini ada tidak dikirimi.
 
+**PDF invoice / kwitansi.** Setiap invoice punya PDF A5 (`/api/public/invoice/<id>/pdf`):
+belum lunas → "INVOICE" + jatuh tempo (+ QRIS bila mode QRIS aktif); lunas →
+"KWITANSI" dengan cap **LUNAS**. PDF **dilampirkan** di pesan invoice & bukti
+pelunasan (Pengaturan → WhatsApp → "Lampirkan PDF", default aktif). Fonnte: file
+diunggah langsung (fitur kirim file hanya di paket Fonnte tertentu); Wablas: PDF
+diambil lewat URL publik. Bila lampiran ditolak, pesan otomatis dikirim sebagai
+teks + link (tercatat di log: "[tanpa PDF: alasan]"). Penghuni juga bisa menekan
+**Unduh PDF** di halaman invoice; admin punya tombol **PDF** di setiap invoice.
+
 Scheduler berjalan tiap 30 menit. Setiap pesan dicatat (Pembayaran → Notifikasi WA)
 dan tidak pernah terkirim dua kali. Tanpa gateway, tombol **Kirim** membuka wa.me manual.
 
@@ -212,6 +221,7 @@ server/src/
   settings.js  setting (rahasia di-mask) gcal.js      Google Calendar sync
   uploads.js   foto (validasi magic byte) qris.js     QRIS statis → dinamis
   aiData.js    insight per menu + jawaban lokal       ai.js  tanya jawab Claude
+  invoicePdf.js  PDF invoice/kwitansi (pdfkit, A5, cap LUNAS, QRIS)
   googleAuth.js  login dengan Google (akun terdaftar saja, kode sekali pakai + nonce)
 server/test/   api.test.mjs, integration.test.mjs, ai.test.mjs, run.mjs
 client/src/

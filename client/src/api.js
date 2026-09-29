@@ -37,6 +37,8 @@ const del = (p) => request(p, { method: 'DELETE' });
 const qs = (o) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== '' && v !== null)).toString();
 
 // URL for a protected upload (<img src> cannot send headers).
+// PDF invoice/kwitansi (publik; publicId tidak bisa ditebak).
+export const invoicePdfUrl = (publicId, download = false) => `${BASE}/public/invoice/${encodeURIComponent(publicId)}/pdf${download ? '?download=1' : ''}`;
 export const fileUrl = (name) => (name ? `${BASE}/files/${encodeURIComponent(name)}?token=${encodeURIComponent(tokenStore.get())}` : '');
 
 export const api = {

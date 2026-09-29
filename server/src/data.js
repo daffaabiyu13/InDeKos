@@ -40,6 +40,7 @@ export const settings = {
   reminderDaysBefore: 3,
   invoiceAutoSend: false,
   receiptAutoSend: true, // kirim bukti pelunasan via WA saat invoice lunas
+  waAttachPdf: true, // lampirkan PDF invoice/kwitansi di pesan WA (gagal → teks saja)
   publicUrl: 'http://localhost:5173', // dipakai untuk link invoice di pesan WA
 
   // Google Calendar

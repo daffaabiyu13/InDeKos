@@ -8,7 +8,7 @@ let pass = 0; let fail = 0;
 const ok = (c, m, x = '') => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m, x); } };
 
 // ── Mock server: Wablas + Google OAuth/Calendar ──
-const wa = []; const fonnte = []; const events = new Map(); let seq = 0; let tokenCalls = 0;
+const wa = []; const fonnte = []; const waDocs = []; const events = new Map(); let seq = 0; let tokenCalls = 0;
 http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -19,10 +19,23 @@ http.createServer((req, res) => {
       return json(200, { status: true, message: 'sent' });
     }
     if (req.url === '/fonnte/send') {
-      const p = new URLSearchParams(body);
-      fonnte.push({ auth: req.headers.authorization, type: req.headers['content-type'], target: p.get('target'), message: p.get('message') });
-      if (req.headers.authorization !== 'FONNTE-OK') return json(200, { status: false, reason: 'invalid token' });
-      return json(200, { detail: 'success! message in queue', id: ['1'], process: 'pending', status: true, target: [p.get('target')] });
+      const type = String(req.headers['content-type'] || '');
+      let fields = {}; let file = null;
+      if (type.startsWith('multipart/form-data')) {
+        // Parser multipart sederhana (cukup untuk memeriksa field & file PDF).
+        for (const m of body.matchAll(/name="([^"]+)"(?:; filename="([^"]+)")?\r\n(?:Content-Type: ([^\r\n]+)\r\n)?\r\n([\s\S]*?)\r\n--/g)) {
+          if (m[2]) file = { filename: m[2], type: m[3], isPdf: m[4].startsWith('%PDF'), size: m[4].length };
+          else fields[m[1]] = m[4];
+        }
+      } else fields = Object.fromEntries(new URLSearchParams(body));
+      fonnte.push({ auth: req.headers.authorization, type, target: fields.target, message: fields.message, filename: fields.filename, file });
+      if (file && req.headers.authorization === 'FONNTE-NOFILE') return json(200, { status: false, reason: 'your package does not support file' });
+      if (!['FONNTE-OK', 'FONNTE-NOFILE'].includes(req.headers.authorization)) return json(200, { status: false, reason: 'invalid token' });
+      return json(200, { detail: 'success! message in queue', id: ['1'], process: 'pending', status: true, target: [fields.target] });
+    }
+    if (req.url === '/api/send-document') {
+      waDocs.push({ auth: req.headers.authorization, ...JSON.parse(body) });
+      return json(200, { status: true, message: 'document sent' });
     }
     if (req.url === '/token') {
       tokenCalls++;
@@ -69,6 +82,37 @@ f = await call('POST', '/notifications/test', { target: '08123456789' }, P);
 ok(f.status === 502 && /invalid token/.test(f.data.error), 'Fonnte: token salah → alasan dari Fonnte ditampilkan', f.data?.error);
 f = await call('GET', '/notifications', null, P);
 ok(f.data.log.some((n) => n.kind === 'tes' && n.status === 'gagal') && f.data.log.some((n) => n.kind === 'tes' && n.status === 'terkirim'), 'tes kirim tercatat di log notifikasi');
+
+console.log('— PDF invoice di WhatsApp');
+await call('PUT', '/settings', { waToken: 'FONNTE-OK' }, P);
+const pdfInv = (await call('GET', '/invoices?state=open', null, P)).data.find((i) => i.wa && i.status === 'unpaid');
+let pdfRes = await fetch(`${API}/public/invoice/${pdfInv.publicId}/pdf`);
+const pdfBuf = Buffer.from(await pdfRes.arrayBuffer());
+ok(pdfRes.status === 200 && pdfRes.headers.get('content-type') === 'application/pdf' && pdfBuf.subarray(0, 4).toString() === '%PDF'
+  && /Invoice-INV-\d{6}-\d{4}\.pdf/.test(pdfRes.headers.get('content-disposition')), 'endpoint PDF publik: application/pdf, nama file Invoice-<nomor>.pdf');
+ok((pdfBuf.toString('latin1').match(/\/Type \/Page\b/g) || []).length === 1, 'PDF invoice 1 halaman');
+ok((await fetch(`${API}/public/invoice/tidak-ada/pdf`)).status === 404, 'PDF invoice tak dikenal → 404');
+f = await call('POST', `/invoices/${pdfInv.id}/send`, { kind: 'invoice' }, P);
+let last = fonnte.at(-1);
+ok(f.status === 200 && /multipart\/form-data/.test(last.type) && last.file?.isPdf && last.file.filename === `Invoice-${pdfInv.number}.pdf` && /Berikut tagihan/.test(last.message),
+  'Fonnte: invoice dikirim dengan lampiran PDF (upload file + caption)', JSON.stringify({ t: last.type, f: last.file }));
+ok(/\[PDF terlampir\]/.test((await call('GET', '/notifications', null, P)).data.log[0].response), 'log mencatat "PDF terlampir"');
+await call('PUT', '/settings', { waToken: 'FONNTE-NOFILE' }, P);
+const nBefore = fonnte.length;
+f = await call('POST', `/invoices/${pdfInv.id}/send`, { kind: 'invoice' }, P);
+const tries = fonnte.slice(nBefore);
+ok(f.status === 200 && tries.length === 2 && tries[0].file && !tries[1].file && /x-www-form-urlencoded/.test(tries[1].type) && /Berikut tagihan/.test(tries[1].message),
+  'paket gateway tak mendukung file → otomatis kirim teks saja', JSON.stringify(tries.map((x) => ({ t: x.type, f: Boolean(x.file) }))));
+ok(/\[tanpa PDF: your package does not support file\]/.test((await call('GET', '/notifications', null, P)).data.log[0].response), 'log mencatat alasan tanpa PDF');
+await call('PUT', '/settings', { waToken: 'FONNTE-OK', waAttachPdf: false }, P);
+f = await call('POST', `/invoices/${pdfInv.id}/send`, { kind: 'reminder' }, P);
+f = await call('POST', `/invoices/${pdfInv.id}/send`, { kind: 'invoice' }, P);
+ok(!fonnte.at(-1).file && !fonnte.at(-2).file, 'lampiran PDF dimatikan / reminder → teks saja');
+await call('PUT', '/settings', { waAttachPdf: true, publicUrl: 'https://kos-contoh.id' }, P);
+await call('PUT', '/settings', { waProvider: 'wablas', waBaseUrl: `http://localhost:${MOCK}`, waToken: 'WB' }, P);
+f = await call('POST', `/invoices/${pdfInv.id}/send`, { kind: 'invoice' }, P);
+ok(waDocs.at(-1)?.document === `https://kos-contoh.id/api/public/invoice/${pdfInv.publicId}/pdf` && /Berikut tagihan/.test(waDocs.at(-1)?.caption), 'Wablas: PDF dikirim lewat URL publik + caption');
+await call('PUT', '/settings', { publicUrl: 'http://localhost:5173' }, P);
 
 console.log('— WhatsApp gateway');
 let r = await call('PUT', '/settings', { waProvider: 'wablas', waBaseUrl: `http://localhost:${MOCK}`, waToken: 'SECRET-TOKEN', reminderEnabled: true, reminderDaysBefore: 3, invoiceAutoSend: true }, P);

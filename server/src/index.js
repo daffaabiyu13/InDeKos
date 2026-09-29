@@ -17,6 +17,7 @@ import { authRouter, requireAuth, requireRole, allowQueryToken, signToken, verif
 import * as billing from './billing.js';
 import * as repo from './repo.js';
 import * as notify from './notify.js';
+import { invoicePdf, pdfFileName } from './invoicePdf.js';
 import * as gcal from './gcal.js';
 import * as googleAuth from './googleAuth.js';
 import { saveImage, sendImage } from './uploads.js';
@@ -120,6 +121,19 @@ app.get('/api/public/invoice/:publicId', h(async (req, res) => {
     status, state, method, paidAt, publicId, qrImage,
     kos: { namaKos: s.namaKos, alamat: s.alamat, wa: s.wa }, paymentMode: s.paymentMode,
   });
+}));
+
+// PDF invoice/kwitansi (link sama rahasianya dengan halaman invoice publik).
+app.get('/api/public/invoice/:publicId/pdf', h(async (req, res) => {
+  const inv = billing.getInvoiceByPublicId(req.params.publicId);
+  if (!inv) throw bad('Invoice tidak ditemukan.', 404);
+  const pdf = await invoicePdf(inv);
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `${req.query.download ? 'attachment' : 'inline'}; filename="${pdfFileName(inv)}"`,
+    'Cache-Control': 'no-store',
+  });
+  res.send(pdf);
 }));
 
 app.post('/api/public/invoice/:publicId/confirm', h((req, res) => {

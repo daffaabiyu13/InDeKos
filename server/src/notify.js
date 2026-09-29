@@ -9,6 +9,7 @@
 import db from './db.js';
 import { getSettings } from './settings.js';
 import { todayISO, addDays, daysBetween, fmtDate, fmtRp, waNumber, nowStamp } from './util.js';
+import { invoicePdf, pdfFileName } from './invoicePdf.js';
 
 export function gatewayReady(s = getSettings()) {
   if (!s.waProvider || s.waProvider === 'none' || !s.waToken) return false;
@@ -52,6 +53,67 @@ export async function sendWhatsApp(target, message, s = getSettings()) {
   } catch (e) {
     return { ok: false, error: e.name === 'TimeoutError' ? 'Gateway tidak merespons (timeout).' : e.message };
   }
+}
+
+// Kirim pesan + lampiran PDF. Fonnte: unggah file langsung (bisa dari localhost).
+// Wablas: lewat URL publik PDF (butuh URL publik yang bisa diakses gateway).
+export async function sendWhatsAppFile(target, message, pdf, filename, publicPdfUrl, s = getSettings()) {
+  const phone = waNumber(target);
+  if (!phone) return { ok: false, error: 'Nomor WhatsApp kosong.' };
+  if (!gatewayReady(s)) return { ok: false, error: 'Gateway WhatsApp belum dikonfigurasi.' };
+  try {
+    let res;
+    if (s.waProvider === 'fonnte') {
+      const form = new FormData();
+      form.set('target', phone);
+      form.set('message', message);
+      form.set('countryCode', '62');
+      form.set('filename', filename);
+      form.set('file', new Blob([pdf], { type: 'application/pdf' }), filename);
+      res = await fetch(process.env.FONNTE_API_URL || 'https://api.fonnte.com/send', {
+        method: 'POST', headers: { Authorization: s.waToken }, body: form, signal: AbortSignal.timeout(30000),
+      });
+    } else if (s.waProvider === 'wablas') {
+      if (!publicPdfUrl || /localhost|127\.0\.0\.1/.test(publicPdfUrl)) return { ok: false, error: 'URL publik belum diatur (Wablas mengambil PDF lewat URL).' };
+      res = await fetch(`${String(s.waBaseUrl).replace(/\/+$/, '')}/api/send-document`, {
+        method: 'POST',
+        headers: { Authorization: s.waToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, document: publicPdfUrl, caption: message }),
+        signal: AbortSignal.timeout(30000),
+      });
+    } else {
+      return { ok: false, error: `Provider tidak dikenal: ${s.waProvider}` };
+    }
+    const text = await res.text();
+    let body;
+    try { body = JSON.parse(text); } catch { body = text; }
+    const ok = res.ok && !(body && typeof body === 'object' && body.status === false);
+    return {
+      ok,
+      response: (typeof body === 'string' ? body : JSON.stringify(body)).slice(0, 500),
+      error: ok ? '' : (body?.reason || body?.message || `HTTP ${res.status}`),
+    };
+  } catch (e) {
+    return { ok: false, error: e.name === 'TimeoutError' ? 'Gateway tidak merespons (timeout).' : e.message };
+  }
+}
+
+// Pesan invoice/bukti: coba dengan lampiran PDF (bila diaktifkan), gagal → kirim teks saja.
+async function sendWithPdf(inv, message, s) {
+  if (s.waAttachPdf !== false) {
+    try {
+      const pdf = await invoicePdf(inv, s);
+      const url = `${String(s.publicUrl || '').replace(/\/+$/, '')}/api/public/invoice/${inv.publicId}/pdf`;
+      const withFile = await sendWhatsAppFile(inv.wa, message, pdf, pdfFileName(inv), url, s);
+      if (withFile.ok) return { ...withFile, attached: true, response: `[PDF terlampir] ${withFile.response || ''}`.trim() };
+      const plain = await sendWhatsApp(inv.wa, message, s);
+      return { ...plain, attached: false, response: `[tanpa PDF: ${withFile.error}] ${plain.response || ''}`.trim() };
+    } catch (e) {
+      const plain = await sendWhatsApp(inv.wa, message, s);
+      return { ...plain, attached: false, response: `[tanpa PDF: ${e.message}] ${plain.response || ''}`.trim() };
+    }
+  }
+  return { ...(await sendWhatsApp(inv.wa, message, s)), attached: false };
 }
 
 export function log(invoiceId, kind, target, result) {
@@ -124,7 +186,7 @@ export async function sendInvoice(inv, { kind = 'invoice' } = {}) {
   if (!gatewayReady(s)) {
     return { ok: true, via: 'link', link: `https://wa.me/${waNumber(inv.wa)}?text=${encodeURIComponent(message)}` };
   }
-  const result = await sendWhatsApp(inv.wa, message, s);
+  const result = kind === 'reminder' ? await sendWhatsApp(inv.wa, message, s) : await sendWithPdf(inv, message, s);
   log(inv.id, kind, inv.wa, result);
   if (result.ok) {
     db.prepare(`UPDATE invoices SET ${kind === 'reminder' ? 'remindedAt' : kind === 'lunas' ? 'receiptSentAt' : 'sentAt'} = ? WHERE id = ?`).run(nowStamp(), inv.id);
@@ -163,7 +225,7 @@ async function doReceipts(limit = 50) {
     AND substr(paidAt, 1, 10) >= ? ORDER BY paidAt, id LIMIT ?`).all(addDays(todayISO(), -3), limit);
   let sent = 0;
   for (const inv of rows) {
-    const result = await sendWhatsApp(inv.wa, receiptMessage(inv, s), s);
+    const result = await sendWithPdf(inv, receiptMessage(inv, s), s);
     log(inv.id, 'lunas', inv.wa, result);
     if (result.ok) {
       db.prepare('UPDATE invoices SET receiptSentAt = ? WHERE id = ?').run(nowStamp(), inv.id);
@@ -182,7 +244,7 @@ async function doAutoSend(limit = 50) {
     AND wa != '' ORDER BY issueDate LIMIT ?`).all(todayISO(), limit);
   let sent = 0;
   for (const inv of rows) {
-    const result = await sendWhatsApp(inv.wa, invoiceMessage(inv, s), s);
+    const result = await sendWithPdf(inv, invoiceMessage(inv, s), s);
     log(inv.id, 'invoice', inv.wa, result);
     if (result.ok) {
       db.prepare('UPDATE invoices SET sentAt = ? WHERE id = ?').run(nowStamp(), inv.id);

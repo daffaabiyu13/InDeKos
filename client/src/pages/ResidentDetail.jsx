@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, invoicePdfUrl } from '../api.js';
 import { useFetch } from '../useFetch.js';
 import {
   avatarColor, initials, openWhatsApp, fmtDate, fmtRp, todayISO, monthsBetween,
@@ -119,6 +119,7 @@ export function InvoiceActions({ inv, reload, onPay }) {
       {inv.status === 'unpaid' && <button className="btn btn-g btn-sm" onClick={() => send('reminder')} title="Kirim pengingat">🔔</button>}
       {inv.status === 'paid' && <button className="btn btn-g btn-sm" onClick={() => send('lunas')} title={inv.receiptSentAt && inv.receiptSentAt !== '-' ? 'Bukti sudah terkirim — kirim ulang' : 'Kirim bukti pelunasan via WhatsApp'}>{inv.receiptSentAt && inv.receiptSentAt !== '-' ? '✅ Bukti' : 'Bukti'}</button>}
       <a className="btn btn-g btn-sm" href={`/invoice/${inv.publicId}`} target="_blank" rel="noreferrer">Lihat</a>
+      <a className="btn btn-g btn-sm" href={invoicePdfUrl(inv.publicId)} target="_blank" rel="noreferrer" title={inv.status === 'paid' ? 'PDF kwitansi' : 'PDF invoice'}>PDF</a>
       {inv.status === 'unpaid' && <button className="btn btn-g btn-sm" onClick={voidIt} title="Batalkan">✕</button>}
     </div>
   );

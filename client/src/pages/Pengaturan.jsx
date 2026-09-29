@@ -164,6 +164,13 @@ export default function Pengaturan({ onSaved }) {
               <label className="switch-row"><input type="checkbox" checked={s.receiptAutoSend !== false} onChange={set('receiptAutoSend')} /> <strong>Kirim bukti pelunasan otomatis</strong></label>
               <div className="tm" style={{ marginTop: 4 }}>Begitu invoice lunas (dicatat admin atau pembayaran QRIS diverifikasi), penghuni langsung menerima pesan “pembayaran diterima” + link kwitansi.</div>
             </div>
+            <div className="toggle-card">
+              <label className="switch-row"><input type="checkbox" checked={s.waAttachPdf !== false} onChange={set('waAttachPdf')} /> <strong>Lampirkan PDF invoice / kwitansi</strong></label>
+              <div className="tm" style={{ marginTop: 4 }}>
+                Pesan invoice & bukti pelunasan disertai file PDF. Fonnte: kirim file hanya tersedia di paket tertentu; Wablas: butuh URL publik aplikasi.
+                Bila lampiran ditolak gateway, pesan tetap terkirim sebagai teks + link.
+              </div>
+            </div>
             <TestSend defaultTarget={s.wa} ready={s.waProvider !== 'none' && s.waTokenSet} />
           </div>
         </div>

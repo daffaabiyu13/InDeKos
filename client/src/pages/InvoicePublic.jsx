@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../api.js';
+import { api, invoicePdfUrl } from '../api.js';
 import { fmtRp, fmtDate, INVOICE_STATE, KIND_LABEL } from '../helpers.js';
 
 // Public invoice (link sent via WhatsApp): details, dynamic QRIS, tenant
@@ -83,7 +83,8 @@ export default function InvoicePublic() {
         )}
 
         <div className="no-print" style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <button className="btn btn-g" style={{ flex: 1, justifyContent: 'center' }} onClick={() => window.print()}>🖨 Cetak / Simpan PDF</button>
+          <a className="btn btn-g" style={{ flex: 1, justifyContent: 'center' }} href={invoicePdfUrl(publicId, true)}>⬇ Unduh PDF</a>
+          <button className="btn btn-g" style={{ flex: 1, justifyContent: 'center' }} onClick={() => window.print()}>🖨 Cetak</button>
           <a className="btn btn-g" style={{ flex: 1, justifyContent: 'center' }} href="/bayar">Tagihan lain</a>
         </div>
       </div>
