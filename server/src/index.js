@@ -23,7 +23,7 @@ import { saveImage, sendImage } from './uploads.js';
 import { generateDynamicQris, isValidQris } from './qris.js';
 import * as ai from './ai.js';
 import { insightsFor } from './aiData.js';
-import { todayISO, nowStamp, fmtDate, parseRp, addDays, waNumber } from './util.js';
+import { todayISO, nowStamp, fmtDate, parseRp, addDays, waNumber, parseStayMonths } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -73,13 +73,13 @@ app.post('/api/public/applications', h((req, res) => {
   const score = hasScore ? Math.max(0, Math.min(1, Number(b.faceScore))) : null;
   const info = db.prepare(`INSERT INTO applications
     (name,tempatLahir,tglLahir,alamat,nik,wa,job,uni,wali,waliStatus,waWali,emergency2Name,emergency2Rel,emergency2Wa,
-     ktpPhoto,selfiePhoto,faceScore,faceMatch,roomTypeId,sumber,masuk,status,createdAt)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)`).run(
+     ktpPhoto,selfiePhoto,faceScore,faceMatch,roomTypeId,sumber,masuk,stayMonths,status,createdAt)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)`).run(
     String(b.name).trim(), b.tempatLahir || '', b.tglLahir || '', b.alamat || '', String(b.nik || '').replace(/\D/g, ''),
     b.wa, b.job || 'Lainnya', b.uni || '', b.wali, b.waliStatus || '', b.waWali,
     b.emergency2Name, b.emergency2Rel || '', b.emergency2Wa, ktp, selfie,
     score, score === null || b.faceMatch === undefined || b.faceMatch === null ? null : (b.faceMatch ? 1 : 0),
-    b.roomTypeId ? Number(b.roomTypeId) : null, b.sumber || '', b.masuk || '', nowStamp(),
+    b.roomTypeId ? Number(b.roomTypeId) : null, b.sumber || '', b.masuk || '', parseStayMonths(b.stayMonths), nowStamp(),
   );
   logActivity('jade', `Pendaftaran baru dari <strong>${String(b.name).trim()}</strong> menunggu verifikasi`);
   res.status(201).json({ ok: true, id: info.lastInsertRowid });
@@ -317,7 +317,10 @@ app.get('/api/applications', h((req, res) => res.json(repo.listApplications(req.
 app.post('/api/applications/:id/approve', h((req, res) => {
   const room = String(req.body?.room || '').trim();
   if (!room) throw bad('Nomor kamar wajib dipilih.');
-  const resident = repo.approveApplication(req.params.id, { room, dueDay: req.body.dueDay, rent: req.user.role === 'pemilik' ? req.body.rent : undefined });
+  const resident = repo.approveApplication(req.params.id, {
+    room, dueDay: req.body.dueDay, rent: req.user.role === 'pemilik' ? req.body.rent : undefined,
+    stayMonths: req.body.stayMonths === undefined ? undefined : parseStayMonths(req.body.stayMonths),
+  });
   kickJobs();
   res.json({ ok: true, resident });
 }));

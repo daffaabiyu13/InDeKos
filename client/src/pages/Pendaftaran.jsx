@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useFetch } from '../useFetch.js';
-import { avatarColor, initials, openWhatsApp, fmtDate, fmtRp, timeAgo } from '../helpers.js';
+import { avatarColor, initials, openWhatsApp, fmtDate, fmtRp, timeAgo, fmtStay } from '../helpers.js';
 import { useToast } from '../components/Toast.jsx';
 import { useConfirm } from '../components/Confirm.jsx';
 import Modal from '../components/Modal.jsx';
 import FaceCheck, { FaceBadge } from '../components/FaceCheck.jsx';
+import StayInput from '../components/StayInput.jsx';
 
 export default function Pendaftaran({ version, onChange }) {
   const [ver, setVer] = useState(0);
@@ -52,6 +53,7 @@ export default function Pendaftaran({ version, onChange }) {
                 <div style={{ fontSize: 12.5, display: 'grid', gap: 6, marginBottom: 14 }}>
                   <Row label="No. WA" value={a.wa} />
                   <Row label="Rencana masuk" value={fmtDate(a.masuk)} />
+                  <Row label="Rencana tinggal" value={fmtStay(a.stayMonths)} />
                   <Row label="Kontak darurat" value={`${a.wali || '—'} (${a.waliStatus || '-'}) · ${a.emergency2Name || '—'} (${a.emergency2Rel || '-'})`} />
                   <Row label="Sumber info" value={a.sumber || '—'} />
                 </div>
@@ -78,6 +80,7 @@ function VerifyModal({ app, onClose, onDone }) {
   const masukDay = app.masuk ? Number(app.masuk.slice(8, 10)) : 1;
   const [room, setRoom] = useState('');
   const [dueDay, setDueDay] = useState(masukDay);
+  const [stayMonths, setStayMonths] = useState(app.stayMonths ?? null);
   const [busy, setBusy] = useState(false);
   const available = (rooms || []).filter((r) => r.status === 'av');
   const sel = available.find((r) => r.number === room);
@@ -85,7 +88,7 @@ function VerifyModal({ app, onClose, onDone }) {
   async function approve() {
     setBusy(true);
     try {
-      const { resident } = await api.approveApplication(app.id, { room, dueDay: Number(dueDay) });
+      const { resident } = await api.approveApplication(app.id, { room, dueDay: Number(dueDay), stayMonths });
       toast(`✅ ${app.name} ditempatkan di kamar ${room}. Invoice pertama dibuat.`);
       onDone();
       onClose();
@@ -112,6 +115,7 @@ function VerifyModal({ app, onClose, onDone }) {
             <Detail label="Kontak Darurat 1" value={`${app.wali || '—'} (${app.waliStatus || '-'}) · ${app.waWali || '—'}`} full />
             <Detail label="Kontak Darurat 2" value={`${app.emergency2Name || '—'} (${app.emergency2Rel || '-'}) · ${app.emergency2Wa || '—'}`} full />
             <Detail label="Rencana Masuk" value={fmtDate(app.masuk)} />
+            <Detail label="Rencana Tinggal" value={fmtStay(app.stayMonths)} />
             <Detail label="Sumber Info" value={app.sumber} />
           </div>
         </div>
@@ -137,6 +141,9 @@ function VerifyModal({ app, onClose, onDone }) {
             {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>Tanggal {d}{app.masuk && d === masukDay ? ' (tgl masuk)' : ''}</option>)}
           </select>
         </div>
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <StayInput value={stayMonths} masuk={app.masuk} onChange={setStayMonths} hint="Diisi calon penghuni di formulir; boleh disesuaikan." />
       </div>
     </Modal>
   );

@@ -5,9 +5,10 @@ import PhotoInput from './PhotoInput.jsx';
 import { api } from '../api.js';
 import { useToast } from './Toast.jsx';
 import { fmtRp, todayISO } from '../helpers.js';
+import StayInput from './StayInput.jsx';
 
 const empty = () => ({
-  name: '', room: '', masuk: todayISO(), dueDay: '', wa: '', job: 'Mahasiswa', uni: '', nik: '', alamat: '',
+  name: '', room: '', masuk: todayISO(), dueDay: '', wa: '', job: 'Mahasiswa', uni: '', nik: '', alamat: '', stayMonths: null,
   emergencyName: '', emergencyRel: 'Ayah', emergencyWa: '', emergency2Name: '', emergency2Rel: 'Ibu', emergency2Wa: '',
   dailyRateEnabled: false, dailyRate: '', reminderEnabled: true, ktpPhoto: '', selfiePhoto: '',
 });
@@ -86,6 +87,7 @@ export default function AddResidentModal({ onClose, onAdded }) {
           <label className="fl">Reminder WA H-3</label>
           <label className="switch-row"><input type="checkbox" checked={form.reminderEnabled} onChange={set('reminderEnabled')} /> Kirim pengingat otomatis</label>
         </div>
+      <StayInput value={form.stayMonths} masuk={form.masuk} onChange={(v) => setForm((f) => ({ ...f, stayMonths: v }))} />
       </div>
       <div className="fg">
         <label className="switch-row"><input type="checkbox" checked={form.dailyRateEnabled} onChange={set('dailyRateEnabled')} /> Aktifkan rate harian (hari di luar periode penuh ditagih per hari)</label>

@@ -95,7 +95,7 @@ export function ModeBadge({ mode }) {
 // ═════════════ PANEL INSIGHT ═════════════
 function readCollapsed() { try { return localStorage.getItem('indekos-aip') === '1'; } catch { return false; } }
 
-export function AIPanel({ version }) {
+export function AIPanel() {
   const ai = useAI();
   const { pathname } = useLocation();
   const phone = useMediaQuery(PHONE);
@@ -113,7 +113,9 @@ export function AIPanel({ version }) {
       .then((d) => { if (alive) setData(d); })
       .catch((e) => { if (alive) { setData(null); setError(e.message); } });
     return () => { alive = false; };
-  }, [target?.scope, target?.id, version, ai.enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+    // ai.status diambil ulang setiap `version` berubah (setelah perubahan data/pengaturan),
+    // jadi insight ikut diperbarui — dan tidak diminta saat AI baru saja dimatikan.
+  }, [target?.scope, target?.id, ai.status]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setShowAll(false); }, [pathname]);
 
   if (!target || !ai.enabled || target.scope === 'ai') return null;

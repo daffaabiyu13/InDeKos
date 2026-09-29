@@ -4,11 +4,12 @@ import { useSettings } from '../components/Settings.jsx';
 import PhotoInput from '../components/PhotoInput.jsx';
 import { fmtRp } from '../helpers.js';
 import { compareFaces } from '../faceVerify.js'; // ringan; face-api dimuat lazy di dalamnya
+import StayInput from '../components/StayInput.jsx';
 
 const empty = {
   name: '', tempatLahir: '', tglLahir: '', alamat: '', nik: '', wa: '', masuk: '', job: 'Mahasiswa', uni: '',
   wali: '', waliStatus: 'Ayah', waWali: '', emergency2Name: '', emergency2Rel: 'Ibu', emergency2Wa: '',
-  sumber: 'Instagram', roomTypeId: '', ktpPhoto: '', selfiePhoto: '',
+  sumber: 'Instagram', roomTypeId: '', ktpPhoto: '', selfiePhoto: '', stayMonths: null,
 };
 const RELATIONS = ['Ayah', 'Ibu', 'Kakak', 'Adik', 'Paman/Bibi', 'Suami/Istri', 'Teman', 'Lainnya'];
 
@@ -114,6 +115,8 @@ export default function FormPendaftaran() {
                   </select>
                 </div>
               </div>
+              <StayInput value={form.stayMonths} masuk={form.masuk} onChange={(v) => setForm((f) => ({ ...f, stayMonths: v }))}
+                hint="Perkiraan saja, membantu kami menyiapkan kamar. Pembayaran tetap per bulan." />
               {form.roomTypeId && (
                 <div className="field-hint" style={{ marginTop: -6, marginBottom: 12 }}>
                   Fasilitas: {info?.roomTypes.find((t) => String(t.id) === form.roomTypeId)?.facilities.join(', ')}

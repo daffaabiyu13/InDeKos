@@ -233,6 +233,8 @@ function ensureColumn(table, col, def) {
 }
 ensureColumn('users', 'email', "TEXT NOT NULL DEFAULT ''"); // email Google untuk login
 ensureColumn('users', 'googleSub', "TEXT NOT NULL DEFAULT ''"); // ID akun Google yang ditautkan
+ensureColumn('applications', 'stayMonths', 'INTEGER'); // rencana lama tinggal (bulan), NULL = belum pasti
+ensureColumn('residents', 'stayMonths', 'INTEGER');
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email != '';
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_gsub ON users(googleSub) WHERE googleSub != '';
@@ -301,22 +303,22 @@ function seedBase() {
 
     if (count('residents') === 0) {
       const ins = db.prepare(`INSERT INTO residents
-        (name,room,masuk,dueDay,dailyRateEnabled,deferUntil,job,wa,uni,createdAt)
-        VALUES(?,?,?,?,?,?,?,?,?,?)`);
+        (name,room,masuk,dueDay,dailyRateEnabled,deferUntil,job,wa,uni,stayMonths,createdAt)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?)`);
       for (const r of seed.residents) {
         ins.run(r.name, r.room, r.masuk, Number(r.masuk.slice(8, 10)), r.dailyRateEnabled ? 1 : 0,
-          r.deferUntil || '', r.job, r.wa, r.uni, now);
+          r.deferUntil || '', r.job, r.wa, r.uni, r.stayMonths ?? null, now);
       }
     }
 
     if (count('applications') === 0) {
       const ins = db.prepare(`INSERT INTO applications
         (name,tempatLahir,tglLahir,alamat,nik,wa,job,uni,wali,waliStatus,waWali,
-         emergency2Name,emergency2Rel,emergency2Wa,sumber,masuk,status,createdAt)
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)`);
+         emergency2Name,emergency2Rel,emergency2Wa,sumber,masuk,stayMonths,status,createdAt)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?)`);
       for (const a of seed.applications) {
         ins.run(a.name, a.tempatLahir, a.tglLahir, a.alamat, a.nik, a.wa, a.job, a.uni, a.wali, a.waliStatus,
-          a.waWali, a.emergency2Name, a.emergency2Rel, a.emergency2Wa, a.sumber, a.masuk, now);
+          a.waWali, a.emergency2Name, a.emergency2Rel, a.emergency2Wa, a.sumber, a.masuk, a.stayMonths ?? null, now);
       }
     }
 

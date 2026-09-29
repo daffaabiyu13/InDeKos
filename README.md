@@ -138,6 +138,17 @@ dihapus) dengan pengingat H-3. Kalender internal ada di **Pembayaran → Kalende
   pertama kali mengunduh data bahasa dari CDN). Total, tanggal, toko, dan
   kategori diisi otomatis dan tetap bisa diedit sebelum disimpan.
 
+## Rencana lama tinggal
+
+Calon penghuni mengisi **rencana lama tinggal** di formulir `/form` (pilihan cepat
+3 bln / 6 bln / 1 thn / 2 thn, atau isi bebas dalam bulan/tahun, maks. 10 tahun;
+boleh "belum pasti"). Admin bisa menyesuaikannya saat verifikasi, saat menambah
+penghuni, atau kapan saja di **Detail Penghuni → Pengaturan Penagihan** (mis. saat
+penghuni memperpanjang). Tanggal selesai = tanggal masuk + rencana, tampil di
+detail penghuni, daftar penghuni, dan denah kamar (kuning ≤ 30 hari, merah bila
+lewat). Rencana ini **informasi saja** — tagihan tetap bulanan. AI mengingatkan
+rencana yang segera berakhir (Dashboard, Penghuni, Kamar "berpotensi kosong").
+
 ## AI Asisten (di setiap menu)
 
 Setiap menu punya panel **AI Insight** di bagian atas dan tombol **Tanya AI**

@@ -48,6 +48,26 @@ export function shiftMonth(y, m, n) {
   return { y: Math.floor(idx / 12), m: (idx % 12) + 1 };
 }
 
+// Tambah n bulan ke tanggal ISO (tanggal dijepit ke akhir bulan bila perlu).
+export function addMonths(iso, n) {
+  const { y, m, d } = parseISO(iso);
+  const t = shiftMonth(y, m, n);
+  return toISO(t.y, t.m, Math.min(d, daysInMonth(t.y, t.m)));
+}
+
+// Rencana lama tinggal: bulan bulat 1–120, atau null (belum pasti / tidak valid).
+export function parseStayMonths(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && n >= 1 && n <= 120 ? n : null;
+}
+
+export function fmtStay(months) {
+  if (!months) return 'belum pasti';
+  const y = Math.floor(months / 12); const m = months % 12;
+  return [y ? `${y} tahun` : '', m ? `${m} bulan` : ''].filter(Boolean).join(' ');
+}
+
 export function daysBetween(a, b) {
   const pa = parseISO(a);
   const pb = parseISO(b);

@@ -55,6 +55,23 @@ export function monthsBetween(a, b) {
   return Math.max(0, m);
 }
 
+// Rencana lama tinggal (bulan) → "6 bulan", "1 tahun", "1 tahun 6 bulan".
+export function fmtStay(months) {
+  if (!months) return 'Belum pasti';
+  const y = Math.floor(months / 12); const m = months % 12;
+  return [y ? `${y} tahun` : '', m ? `${m} bulan` : ''].filter(Boolean).join(' ');
+}
+
+// Tanggal ISO + n bulan (dijepit ke akhir bulan), sama dengan perhitungan server.
+export function addMonthsISO(iso, n) {
+  if (!iso || !n) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const idx = y * 12 + (m - 1) + n;
+  const ty = Math.floor(idx / 12); const tm = (idx % 12) + 1;
+  const dim = new Date(Date.UTC(ty, tm, 0)).getUTCDate();
+  return `${ty}-${String(tm).padStart(2, '0')}-${String(Math.min(d, dim)).padStart(2, '0')}`;
+}
+
 export function timeAgo(iso) {
   if (!iso) return '';
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);

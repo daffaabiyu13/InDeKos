@@ -8,6 +8,7 @@ import { useConfirm } from '../components/Confirm.jsx';
 import { useAuth } from '../components/Auth.jsx';
 import Modal from '../components/Modal.jsx';
 import { revealOnSmall } from '../responsive.js';
+import { StayPill } from '../components/StayInput.jsx';
 
 const STATUS = {
   oc: { label: 'Terisi', cls: 'oc' },
@@ -154,6 +155,7 @@ function RoomDetail({ room, types, reload }) {
           <div style={{ flex: 1 }}>
             <div className="tn">{res.name}</div>
             <div className="tm">Masuk {fmtDate(res.masuk)} · jatuh tempo tgl {res.dueDay}</div>
+            {res.stayMonths ? <div style={{ marginTop: 3 }}><StayPill r={res} /></div> : null}
           </div>
           <span className={`badge ${(PAY_STATUS[res.payStatus] || PAY_STATUS.lunas).cls}`}>{(PAY_STATUS[res.payStatus] || PAY_STATUS.lunas).label}</span>
         </div>

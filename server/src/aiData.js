@@ -13,7 +13,7 @@ import * as billing from './billing.js';
 import { gatewayReady } from './notify.js';
 import { isValidQris } from './qris.js';
 import {
-  todayISO, addDays, daysBetween, monthsBetween, parseISO, shiftMonth, fmtDate, fmtRp, verifyPassword,
+  todayISO, addDays, daysBetween, monthsBetween, parseISO, shiftMonth, fmtDate, fmtRp, verifyPassword, fmtStay,
 } from './util.js';
 
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -132,6 +132,11 @@ const vacantSince = (S, number) => {
   const last = S.mantan.find((m) => m.room === number && m.keluar);
   return last ? daysBetween(last.keluar, S.today) : null;
 };
+// Rencana tinggal yang berakhir dalam `days` hari (atau sudah lewat tapi masih tinggal).
+const stayEndingOf = (S, days = 30) => S.residents
+  .filter((r) => r.stayEnd && r.stayDaysLeft <= days && !S.exits.some((e) => e.residentId === r.id))
+  .sort((a, b) => a.stayDaysLeft - b.stayDaysLeft);
+const stayWhen = (r) => (r.stayDaysLeft < 0 ? `lewat ${-r.stayDaysLeft} hari` : r.stayDaysLeft === 0 ? 'hari ini' : `${r.stayDaysLeft} hari lagi`);
 const byRisk = (S) => [...S.residents].sort((a, b) => b.risk.score - a.risk.score || b.outstanding - a.outstanding);
 const lateRanking = (S) => S.residents
   .filter((r) => r.pay.late > 0 || r.payStatus === 'tunggak')
@@ -220,6 +225,8 @@ const builders = {
     out.push(I(reach === null || reach >= 100 ? 'ok' : 'info', '💰', `Pemasukan ${monthLabel(S.thisMonth)}: ${fmtRp(inc)}`,
       reach === null ? 'Belum ada pembanding bulan lalu.' : `Hingga ${fmtDate(S.today)} sudah **${reach}%** dari total ${monthLabel(S.prevMonth)} (${fmtRp(prev)}).`, '/keuangan'));
     if (soon.length) out.push(I('info', '📅', `${plural(soon.length, 'tagihan')} jatuh tempo 7 hari ke depan`, `Total ${fmtRp(sum(soon, (i) => i.amount))}. ${!gatewayReady(S.s) ? 'Gateway WhatsApp belum diatur — reminder otomatis belum bisa terkirim.' : S.s.reminderEnabled ? 'Reminder WhatsApp otomatis aktif.' : 'Reminder WhatsApp **mati** — nyalakan di Pengaturan.'}`, '/pembayaran'));
+    const ending = stayEndingOf(S, 14);
+    if (ending.length) out.push(I('warn', '📆', `Rencana tinggal ${plural(ending.length, 'penghuni')} selesai ≤ 14 hari`, ending.slice(0, 3).map((r) => `**${r.name}** (${r.room}) s/d ${fmtDate(r.stayEnd)}`).join(', '), `/penghuni/${ending[0].id}`));
     const top = byRisk(S).filter((r) => r.risk.level !== 'Rendah').slice(0, 2);
     if (top.length) out.push(I('err', '⚠️', 'Perlu perhatian', top.map((r) => `**${r.name}** (${r.room}): ${r.risk.why.join(', ')}`).join('\n'), `/penghuni/${top[0].id}`));
     return out;
@@ -231,6 +238,8 @@ const builders = {
     out.push(risky.length
       ? I('err', '⚠️', `${plural(risky.length, 'penghuni')} berisiko`, risky.slice(0, 4).map((r) => `- **${r.name}** (${r.room}) — ${r.risk.level}: ${r.risk.why[0]}`).join('\n'), `/penghuni/${risky[0].id}`)
       : I('ok', '✅', 'Tidak ada penghuni berisiko', 'Semua penghuni lancar membayar dan tanpa pelanggaran baru.'));
+    const ending = stayEndingOf(S);
+    if (ending.length) out.push(I('warn', '📆', `${plural(ending.length, 'penghuni')}: rencana tinggal segera berakhir`, `${ending.slice(0, 4).map((r) => `- **${r.name}** (${r.room}) — ${fmtStay(r.stayMonths)}, s/d ${fmtDate(r.stayEnd)} (${stayWhen(r)})`).join('\n')}\nTanyakan apakah akan memperpanjang atau keluar.`, `/penghuni/${ending[0].id}`));
     const loyal = S.residents.filter((r) => r.tenureMonths >= 12 && r.payStatus === 'lunas');
     if (loyal.length) out.push(I('ok', '🌟', `${plural(loyal.length, 'penghuni')} setia ≥ 1 tahun`, `${loyal.slice(0, 4).map((r) => `**${r.name}**`).join(', ')}${loyal.length > 4 ? ', …' : ''}. Pertimbangkan apresiasi atau tawarkan promo perpanjangan.`));
     const missingOf = (r) => [!r.emergencyWa && 'kontak darurat', !r.ktpPhoto && 'foto KTP', !r.selfiePhoto && 'selfie'].filter(Boolean);
@@ -238,7 +247,9 @@ const builders = {
     if (incomplete.length) out.push(I('warn', '📝', `Data belum lengkap: ${plural(incomplete.length, 'penghuni')}`, `${incomplete.slice(0, 4).map((r) => `- ${r.name} (${r.room}): ${missingOf(r).join(', ')}`).join('\n')}${incomplete.length > 4 ? `\n- dan ${incomplete.length - 4} lainnya` : ''}`, `/penghuni/${incomplete[0].id}`));
     const avgTenure = S.residents.length ? (sum(S.residents, (r) => r.tenureMonths) / S.residents.length).toFixed(1) : 0;
     const mhs = S.residents.filter((r) => lower(r.job).includes('mahasis')).length;
-    out.push(I('info', '👥', 'Profil penghuni', `Rata-rata lama tinggal **${String(avgTenure).replace('.', ',')} bulan**. ${pct(mhs, S.residents.length)}% mahasiswa, ${100 - pct(mhs, S.residents.length)}% pekerja/lainnya.`));
+    const planned = S.residents.filter((r) => r.stayMonths);
+    const avgPlan = planned.length ? sum(planned, (r) => r.stayMonths) / planned.length : 0;
+    out.push(I('info', '👥', 'Profil penghuni', `Rata-rata lama tinggal **${String(avgTenure).replace('.', ',')} bulan**${planned.length ? `, rata-rata rencana tinggal **${fmtStay(Math.round(avgPlan))}** (${planned.length} penghuni mengisi)` : ''}. ${pct(mhs, S.residents.length)}% mahasiswa, ${100 - pct(mhs, S.residents.length)}% pekerja/lainnya.`));
     return out;
   },
 
@@ -253,9 +264,16 @@ const builders = {
       : 'Belum ada riwayat pembayaran sewa.'));
     const v = S.violations.filter((x) => x.residentId === r.id);
     if (v.length) out.push(I('warn', '🚨', `${plural(v.length, 'pelanggaran')} tercatat`, v.slice(0, 3).map((x) => `- ${fmtDate(x.date)} · ${x.categoryName || 'Lainnya'} (${x.sp})`).join('\n')));
+    if (r.stayMonths) {
+      const tone2 = r.stayDaysLeft < 0 ? 'warn' : r.stayDaysLeft <= 30 ? 'warn' : 'info';
+      out.push(I(tone2, '📆', `Rencana tinggal ${fmtStay(r.stayMonths)}`, `Masuk ${fmtDate(r.masuk)} → rencana selesai **${fmtDate(r.stayEnd)}** (${stayWhen(r)}). Sudah tinggal ${r.tenureMonths} bulan.`));
+    } else {
+      out.push(I('info', '📆', 'Rencana tinggal belum diisi', 'Isi di tab **Pengaturan Penagihan** agar AI bisa mengingatkan saat masa tinggal hampir selesai.'));
+    }
     let action;
     if (r.payStatus === 'tunggak') action = `Kirim pengingat tunggakan ${fmtRp(r.outstanding)}. Klik **Tanya AI** untuk dibuatkan draf pesan WhatsApp.`;
     else if (S.exits.some((e) => e.residentId === r.id)) action = 'Penghuni mengajukan keluar — pastikan tagihan lunas dan cek kondisi kamar sebelum disetujui.';
+    else if (r.stayEnd && r.stayDaysLeft <= 30) action = `Rencana tinggal ${r.stayDaysLeft < 0 ? 'sudah lewat' : 'hampir selesai'} — tanyakan apakah ${r.name.split(' ')[0]} akan memperpanjang. Bila ya, perbarui rencana tinggalnya; bila tidak, arahkan ke form keluar.`;
     else if (r.tenureMonths >= 6 && S.promos.some((p) => billing.promoIsOpen(p, S.today))) action = 'Penghuni lancar & sudah lama tinggal — cocok ditawari promo yang sedang aktif.';
     else action = `Tagihan berikutnya ${r.nextDue ? fmtDate(r.nextDue) : '—'} (${fmtRp(r.rentAmount)}). Tidak ada tindakan mendesak.`;
     out.push(I('info', '💡', 'Saran tindakan', action));
@@ -279,6 +297,8 @@ const builders = {
     if (occ.mn.length) out.push(I('warn', '🛠️', `${plural(occ.mn.length, 'kamar')} dalam perbaikan`, `${occ.mn.map((r) => r.number).join(', ')}. Selesaikan agar bisa disewakan kembali.`));
     const leaving = S.exits.map((e) => e.room);
     if (leaving.length) out.push(I('info', '🚪', 'Akan kosong', `Kamar ${leaving.join(', ')} akan kosong (pengajuan keluar). Mulai promosikan dari sekarang.`, '/pengajuan-keluar'));
+    const ending = stayEndingOf(S, 45);
+    if (ending.length) out.push(I('info', '📆', 'Berpotensi kosong (rencana tinggal selesai)', `${ending.slice(0, 5).map((r) => `Kamar **${r.room}** — ${r.name}, s/d ${fmtDate(r.stayEnd)}`).join('\n')}\nKonfirmasi perpanjangan agar kamar bisa segera dipromosikan bila kosong.`));
     return out;
   },
 
@@ -355,7 +375,7 @@ const builders = {
       const c = applicationCheck(a, S);
       const tone = c.score >= 80 ? 'ok' : c.score >= 55 ? 'warn' : 'err';
       out.push(I(tone, tone === 'ok' ? '🟢' : tone === 'warn' ? '🟡' : '🔴', `${a.name} — kelengkapan ${c.score}%`,
-        `${c.issues.length ? c.issues.map((x) => `- ${x}`).join('\n') : '- data & verifikasi wajah lengkap'}\n- saran kamar: **${c.suggestRooms.join(', ') || 'tidak ada yang kosong'}**${c.typeFull ? ` (tipe ${c.type.name} penuh)` : ''}${c.waitDays >= 3 ? `\n- sudah menunggu **${c.waitDays} hari** — segera diproses` : ''}`));
+        `${c.issues.length ? c.issues.map((x) => `- ${x}`).join('\n') : '- data & verifikasi wajah lengkap'}\n- rencana tinggal: **${fmtStay(a.stayMonths)}**\n- saran kamar: **${c.suggestRooms.join(', ') || 'tidak ada yang kosong'}**${c.typeFull ? ` (tipe ${c.type.name} penuh)` : ''}${c.waitDays >= 3 ? `\n- sudah menunggu **${c.waitDays} hari** — segera diproses` : ''}`));
     }
     return out;
   },
@@ -452,9 +472,9 @@ builders.ai = builders.dashboard;
 // Saran pertanyaan per menu (juga dipahami oleh mesin lokal).
 const SUGGEST = {
   dashboard: ['Ringkas kondisi kos hari ini', 'Siapa yang perlu ditagih?', 'Prediksi pemasukan bulan depan'],
-  penghuni: ['Siapa yang paling sering terlambat bayar?', 'Penghuni mana yang berisiko keluar?', 'Rata-rata lama tinggal penghuni?'],
+  penghuni: ['Siapa yang paling sering terlambat bayar?', 'Penghuni mana yang berisiko keluar?', 'Rencana tinggal siapa yang segera berakhir?', 'Rata-rata lama tinggal penghuni?'],
   resident: ['Buatkan draf pesan WhatsApp untuk penghuni ini', 'Bagaimana riwayat bayarnya?', 'Apa saran tindakan untuk penghuni ini?'],
-  kamar: ['Kamar mana yang kosong?', 'Tipe kamar mana yang paling laku?', 'Berapa potensi pendapatan yang hilang?'],
+  kamar: ['Kamar mana yang kosong?', 'Kamar mana yang berpotensi kosong?', 'Tipe kamar mana yang paling laku?', 'Berapa potensi pendapatan yang hilang?'],
   pembayaran: ['Siapa yang perlu ditagih?', 'Tagihan jatuh tempo minggu ini?', 'Buatkan pesan pengingat tunggakan'],
   keuangan: ['Bagaimana tren pemasukan?', 'Prediksi pemasukan bulan depan', 'Berapa laba bulan ini?'],
   pengeluaran: ['Kategori pengeluaran terbesar?', 'Ada pengeluaran yang tidak wajar?', 'Bandingkan dengan bulan lalu'],
@@ -501,6 +521,15 @@ const INTENTS = [
     if (!list.length) return 'Tidak ada penghuni yang menunggak, jadi belum perlu pesan pengingat.';
     return `Contoh pesan pengingat tunggakan (sesuaikan nama & nominal):\n\n${waDraft(S, S.residents.find((x) => x.id === list[0].residentId) || { ...list[0], name: list[0].name, payStatus: 'tunggak', outstanding: list[0].amount, overdueCount: 1 })}\n\nTip: aktifkan reminder otomatis di Pengaturan agar pesan dikirim sendiri.`;
   } },
+  { k: /rencana tinggal|rencana|kontrak|berakhir|perpanjang|habis masa|berpotensi kosong|akan kosong/, run(S) {
+    const list = stayEndingOf(S, 60);
+    const exits = S.exits;
+    if (!list.length && !exits.length) {
+      const planned = S.residents.filter((r) => r.stayMonths).length;
+      return `Tidak ada rencana tinggal yang berakhir dalam 60 hari ke depan. ${planned} dari ${S.residents.length} penghuni sudah mengisi rencana tinggal.`;
+    }
+    return `Rencana tinggal yang berakhir dalam 60 hari:\n${list.map((r) => `- **${r.name}** (kamar ${r.room}) — rencana ${fmtStay(r.stayMonths)}, s/d ${fmtDate(r.stayEnd)} (${stayWhen(r)})`).join('\n') || '- tidak ada'}${exits.length ? `\n\nSudah mengajukan keluar: ${exits.map((e) => `${e.name} (kamar ${e.room}, ${fmtDate(e.exitDate)})`).join(', ')}` : ''}\n\nSaran: konfirmasi perpanjangan lebih awal; kamar yang tidak diperpanjang bisa langsung dipromosikan.`;
+  } },
   { k: /telat|terlambat|lambat|sering.*bayar/, run(S) {
     const list = lateRanking(S);
     if (!list.length) return 'Tidak ada penghuni yang tercatat terlambat bayar. 👍';
@@ -509,7 +538,7 @@ const INTENTS = [
       r.overdueCount ? `kini menunggak ${plural(r.overdueCount, 'tagihan')} (${fmtRp(r.outstanding)})` : '',
     ].filter(Boolean).join(', ')}`).join('\n')}`;
   } },
-  { k: /jatuh tempo|minggu ini|7 hari|segera/, run(S) {
+  { k: /jatuh tempo|minggu ini|7 hari/, run(S) {
     const list = dueSoonOf(S);
     if (!list.length) return 'Tidak ada tagihan yang jatuh tempo dalam 7 hari ke depan.';
     return `Jatuh tempo 7 hari ke depan (${fmtRp(sum(list, (i) => i.amount))}):\n${list.map((i) => `- ${fmtDate(i.dueDate)} · **${i.name}** (${i.room}) ${fmtRp(i.amount)}`).join('\n')}`;
@@ -570,7 +599,10 @@ const INTENTS = [
   { k: /promo/, run(S) {
     const open = S.promos.filter((p) => billing.promoIsOpen(p, S.today));
     if (!open.length) return 'Tidak ada promo yang sedang aktif. Promo bisa dibuat di menu Pembayaran → Promo.';
-    const cand = S.residents.filter((r) => r.payStatus === 'lunas' && r.tenureMonths >= 3).slice(0, 5);
+    // Utamakan penghuni lancar yang rencana tinggalnya cukup panjang untuk paket promo.
+    const need = Math.max(...open.map((p) => p.payMonths + p.freeMonths));
+    const cand = S.residents.filter((r) => r.payStatus === 'lunas' && (r.tenureMonths >= 3 || (r.stayMonths || 0) >= need))
+      .sort((a, b) => (b.stayMonths || 0) - (a.stayMonths || 0)).slice(0, 5);
     return `Promo aktif: ${open.map((p) => `**${p.name}** (bayar ${p.payMonths} gratis ${p.freeMonths})`).join(', ')}.\nKandidat yang cocok ditawari: ${cand.map((r) => `${r.name} (${r.room})`).join(', ') || '—'}.`;
   } },
   { k: /aman|keamanan|password|akun/, run(S, sc, id, viewer) { return builders.akun(S, id, viewer).map((x) => `**${x.title}**\n${x.text}`).join('\n\n'); } },
@@ -621,6 +653,7 @@ export function contextFor(scope, id, S = snapshot(), viewer = null) {
       id: r.id, nama: r.name, kamar: r.room, tipe: r.roomType, pekerjaan: r.job || '', kampus: r.uni || '',
       masuk: r.masuk, lamaBulan: r.tenureMonths, sewa: r.rentAmount, jatuhTempoTgl: r.dueDay,
       statusBayar: r.payStatus, tunggakan: r.outstanding, jatuhTempoBerikut: r.nextDue,
+      rencanaTinggalBulan: r.stayMonths || null, rencanaSelesai: r.stayEnd || null,
       riwayatBayar: { total: r.pay.paid, terlambat: r.pay.late, rataTelatHari: r.pay.avgLateDays },
       risiko: `${r.risk.level} (${r.risk.score}): ${r.risk.why.join('; ')}`,
     })),
@@ -638,7 +671,7 @@ export function contextFor(scope, id, S = snapshot(), viewer = null) {
   if (sc === 'pendaftaran') {
     extra.pendaftar = S.applications.map((a) => {
       const c = applicationCheck(a, S);
-      return { nama: a.name, pekerjaan: a.job, kampus: a.uni, tipeDiminta: c.type?.name || '-', rencanaMasuk: a.masuk, sumber: a.sumber, skorKelengkapan: c.score, catatan: c.issues, saranKamar: c.suggestRooms, menungguHari: c.waitDays };
+      return { nama: a.name, pekerjaan: a.job, kampus: a.uni, tipeDiminta: c.type?.name || '-', rencanaMasuk: a.masuk, rencanaTinggalBulan: a.stayMonths || null, sumber: a.sumber, skorKelengkapan: c.score, catatan: c.issues, saranKamar: c.suggestRooms, menungguHari: c.waitDays };
     });
   }
   if (sc === 'kamar') {

@@ -139,7 +139,7 @@ function Layout({ version, refresh }) {
           </div>
         </header>
         <div className="cnt" ref={cntRef}>
-          <AIPanel version={version} />
+          <AIPanel />
           <Outlet />
         </div>
       </div>

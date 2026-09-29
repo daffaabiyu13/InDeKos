@@ -3,7 +3,7 @@
 import db, { tx, logActivity } from './db.js';
 import { getSettings } from './settings.js';
 import * as billing from './billing.js';
-import { todayISO, nowStamp, parseISO, shiftMonth } from './util.js';
+import { todayISO, nowStamp, parseISO, shiftMonth, parseStayMonths } from './util.js';
 
 const parseFacilities = (f) => { try { return JSON.parse(f || '[]'); } catch { return []; } };
 
@@ -28,7 +28,7 @@ export function listRooms() {
         facilities: parseFacilities(room.typeFacilities),
         // perbaikan diprioritaskan agar kamar tak bisa ditempati saat diperbaiki
         status: room.maintenance ? 'mn' : res ? 'oc' : 'av',
-        resident: res ? { id: res.id, name: res.name, wa: res.wa, masuk: res.masuk, job: res.job, uni: res.uni, dueDay: res.dueDay, ...billing.residentSummary(res) } : null,
+        resident: res ? { id: res.id, name: res.name, wa: res.wa, masuk: res.masuk, job: res.job, uni: res.uni, dueDay: res.dueDay, stayMonths: res.stayMonths, ...billing.residentSummary(res) } : null,
       };
     });
 }
@@ -68,7 +68,7 @@ export function residentDetail(id) {
 
 const RESIDENT_FIELDS = ['name', 'room', 'masuk', 'dueDay', 'rent', 'dailyRateEnabled', 'dailyRate', 'deferUntil',
   'reminderEnabled', 'job', 'wa', 'uni', 'nik', 'alamat', 'emergencyName', 'emergencyRel', 'emergencyWa',
-  'emergency2Name', 'emergency2Rel', 'emergency2Wa', 'ktpPhoto', 'selfiePhoto', 'faceScore'];
+  'emergency2Name', 'emergency2Rel', 'emergency2Wa', 'ktpPhoto', 'selfiePhoto', 'faceScore', 'stayMonths'];
 
 function normalizeResident(b, s = getSettings()) {
   const masuk = b.masuk || todayISO();
@@ -82,6 +82,7 @@ function normalizeResident(b, s = getSettings()) {
     dailyRate: b.dailyRate ? Number(b.dailyRate) : null,
     reminderEnabled: b.reminderEnabled === undefined ? 1 : (b.reminderEnabled ? 1 : 0),
     deferUntil: b.deferUntil || '',
+    stayMonths: parseStayMonths(b.stayMonths),
   };
 }
 
@@ -129,7 +130,7 @@ export function listApplications(status) {
   return rows.map((a) => ({ ...a, faceMatch: a.faceMatch === null ? null : Boolean(a.faceMatch) }));
 }
 
-export function approveApplication(id, { room, dueDay, rent }) {
+export function approveApplication(id, { room, dueDay, rent, stayMonths }) {
   const a = db.prepare('SELECT * FROM applications WHERE id = ?').get(Number(id));
   if (!a) throw Object.assign(new Error('Pendaftaran tidak ditemukan.'), { status: 404 });
   if (a.status !== 'pending') throw Object.assign(new Error('Pendaftaran sudah diproses.'), { status: 400 });
@@ -140,6 +141,8 @@ export function approveApplication(id, { room, dueDay, rent }) {
       emergencyName: a.wali, emergencyRel: a.waliStatus, emergencyWa: a.waWali,
       emergency2Name: a.emergency2Name, emergency2Rel: a.emergency2Rel, emergency2Wa: a.emergency2Wa,
       ktpPhoto: a.ktpPhoto, selfiePhoto: a.selfiePhoto, faceScore: a.faceScore,
+      // Admin boleh menyesuaikan rencana tinggal saat verifikasi; default dari formulir.
+      stayMonths: stayMonths !== undefined ? stayMonths : a.stayMonths,
     });
     db.prepare("UPDATE applications SET status = 'approved', room = ? WHERE id = ?").run(String(room), a.id);
     return resident;

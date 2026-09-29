@@ -11,6 +11,7 @@ import { useConfirm } from '../components/Confirm.jsx';
 import { useAuth } from '../components/Auth.jsx';
 import Modal from '../components/Modal.jsx';
 import FaceCheck from '../components/FaceCheck.jsx';
+import StayInput, { StayPill } from '../components/StayInput.jsx';
 
 const TABS = [
   ['tagihan', 'Tagihan'],
@@ -52,6 +53,7 @@ export default function ResidentDetail({ version, onChange }) {
               {r.dailyRateEnabled ? <span className="badge b-pebble">Rate harian {fmtRp(r.dailyRateAmount)}</span> : null}
               {r.deferUntil ? <span className="badge b-pebble">Tangguh s/d {fmtDate(r.deferUntil)}</span> : null}
               {!r.reminderEnabled && <span className="badge b-neu">Reminder off</span>}
+              <StayPill r={r} />
             </div>
           </div>
           <div className="res-actions">
@@ -204,11 +206,11 @@ function BillingTab({ r, reload }) {
   const { isPemilik } = useAuth();
   const [f, setF] = useState({
     dueDay: r.dueDay, rent: r.rent || '', dailyRateEnabled: Boolean(r.dailyRateEnabled), dailyRate: r.dailyRate || '',
-    deferUntil: r.deferUntil || '', reminderEnabled: Boolean(r.reminderEnabled),
+    deferUntil: r.deferUntil || '', reminderEnabled: Boolean(r.reminderEnabled), stayMonths: r.stayMonths ?? null,
   });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   async function save() {
-    const body = { dueDay: Number(f.dueDay), dailyRateEnabled: f.dailyRateEnabled, dailyRate: f.dailyRate ? Number(f.dailyRate) : null, deferUntil: f.deferUntil, reminderEnabled: f.reminderEnabled };
+    const body = { dueDay: Number(f.dueDay), dailyRateEnabled: f.dailyRateEnabled, dailyRate: f.dailyRate ? Number(f.dailyRate) : null, deferUntil: f.deferUntil, reminderEnabled: f.reminderEnabled, stayMonths: f.stayMonths };
     if (isPemilik) body.rent = f.rent ? Number(String(f.rent).replace(/\D/g, '')) : null;
     try { await api.updateResident(r.id, body); toast('✅ Pengaturan penagihan disimpan.'); reload(); } catch (e) { toast(`⚠️ ${e.message}`); }
   }
@@ -228,6 +230,8 @@ function BillingTab({ r, reload }) {
             <label className="fl">Harga sewa khusus {!isPemilik && <span className="tm">(hanya pemilik)</span>}</label>
             <input className="fi" inputMode="numeric" disabled={!isPemilik} placeholder={`Kosong = ikut harga tipe (${fmtRp(r.rentAmount)})`} value={f.rent} onChange={set('rent')} />
           </div>
+          <StayInput value={f.stayMonths} masuk={r.masuk} onChange={(v) => setF((x) => ({ ...x, stayMonths: v }))}
+            hint="Dihitung dari tanggal masuk. Bila penghuni memperpanjang, ubah angkanya. AI akan mengingatkan menjelang selesai." />
           <div className="fg">
             <label className="switch-row"><input type="checkbox" checked={f.dailyRateEnabled} onChange={set('dailyRateEnabled')} /> Aktifkan rate harian</label>
             <div className="field-hint">Hari di luar periode penuh (masuk/keluar di tengah periode) ditagih per hari, sehingga tidak ada hari yang tidak dibayar. Jika nonaktif, hari tersebut tidak ditagih.</div>
@@ -462,4 +466,5 @@ function CheckoutModal({ r, onClose, onDone }) {
     </Modal>
   );
 }
+
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { avatarColor, initials, openWhatsApp, fmtDate, fmtRp, PAY_STATUS } from '../helpers.js';
 import { Icons } from '../components/icons.jsx';
+import { StayPill } from '../components/StayInput.jsx';
 
 const chips = [
   { f: 'all', label: 'Semua' },
@@ -53,7 +54,7 @@ export default function Penghuni({ version }) {
                       </div>
                     </td>
                     <td><span className="badge b-neu">{r.room}</span><div className="tm">{r.roomType}</div></td>
-                    <td className="tm">{fmtDate(r.masuk)}</td>
+                    <td className="tm">{fmtDate(r.masuk)}{r.stayMonths ? <div><StayPill r={r} short /></div> : null}</td>
                     <td className="tm">Tgl {r.dueDay}<div>{r.nextDue ? `berikutnya ${fmtDate(r.nextDue)}` : ''}</div></td>
                     <td>
                       <span className={`badge ${st.cls}`}>{st.label}</span>

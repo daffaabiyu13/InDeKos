@@ -76,21 +76,21 @@ export const rooms = Array.from({ length: 20 }, (_, i) => {
 });
 
 export const residents = [
-  { name: 'Daffa Abiyu', room: '101', masuk: '2026-03-01', job: 'Mahasiswa', wa: '0899-2732-6323', uni: 'POLINEMA', paidThrough: 'all' },
-  { name: 'Rizki Pratama', room: '102', masuk: '2026-02-15', job: 'Mahasiswa', wa: '0812-3456-7890', uni: 'UB', paidThrough: 'all' },
-  { name: 'Budi Santoso', room: '103', masuk: '2026-01-01', job: 'Karyawan', wa: '0857-1122-3344', uni: '', paidThrough: '2026-08-31' },
-  { name: 'Siti Rahayu', room: '105', masuk: '2026-04-01', job: 'Mahasiswi', wa: '0878-2233-4455', uni: 'POLINEMA', paidThrough: 'all' },
+  { name: 'Daffa Abiyu', stayMonths: 24, room: '101', masuk: '2026-03-01', job: 'Mahasiswa', wa: '0899-2732-6323', uni: 'POLINEMA', paidThrough: 'all' },
+  { name: 'Rizki Pratama', stayMonths: 12, room: '102', masuk: '2026-02-15', job: 'Mahasiswa', wa: '0812-3456-7890', uni: 'UB', paidThrough: 'all' },
+  { name: 'Budi Santoso', stayMonths: 12, room: '103', masuk: '2026-01-01', job: 'Karyawan', wa: '0857-1122-3344', uni: '', paidThrough: '2026-08-31' },
+  { name: 'Siti Rahayu', stayMonths: 12, room: '105', masuk: '2026-04-01', job: 'Mahasiswi', wa: '0878-2233-4455', uni: 'POLINEMA', paidThrough: 'all' },
   { name: 'Ahmad Fauzi', room: '106', masuk: '2026-03-15', job: 'Mahasiswa', wa: '0856-3344-5566', uni: 'UMM', paidThrough: 'all' },
   { name: 'Dewi Kusuma', room: '108', masuk: '2026-02-01', job: 'Karyawan', wa: '0813-5566-7788', uni: '', paidThrough: '2026-08-31' },
   { name: 'Rian Hidayat', room: '109', masuk: '2026-05-01', job: 'Mahasiswa', wa: '0852-7788-9900', uni: 'UIN', paidThrough: 'all' },
   { name: 'Fitri Handayani', room: '110', masuk: '2026-01-01', job: 'Mahasiswi', wa: '0857-9900-1122', uni: 'POLINEMA', paidThrough: 'all' },
-  { name: 'Hendra Wijaya', room: '111', masuk: '2026-06-01', job: 'Karyawan', wa: '0821-1122-3344', uni: '', paidThrough: 'all' },
+  { name: 'Hendra Wijaya', stayMonths: 6, room: '111', masuk: '2026-06-01', job: 'Karyawan', wa: '0821-1122-3344', uni: '', paidThrough: 'all' },
   { name: 'Nurul Aini', room: '113', masuk: '2026-04-15', job: 'Mahasiswi', wa: '0836-2233-4455', uni: 'UNISMA', paidThrough: 'all' },
   { name: 'Bagas Eko', room: '114', masuk: '2026-07-01', job: 'Mahasiswa', wa: '0858-3344-5566', uni: 'UB', paidThrough: 'all' },
   { name: 'Maya Sari', room: '115', masuk: '2026-03-01', job: 'Karyawan', wa: '0812-4455-6677', uni: '', paidThrough: '2026-08-31', deferUntil: '2026-10-15' },
-  { name: 'Irfan Maulana', room: '117', masuk: '2026-08-01', job: 'Mahasiswa', wa: '0857-5566-7788', uni: 'ITN', paidThrough: 'all' },
-  { name: 'Putri Wulandari', room: '118', masuk: '2026-07-15', job: 'Mahasiswi', wa: '0821-6677-8899', uni: 'POLINEMA', paidThrough: 'all', dailyRateEnabled: true },
-  { name: 'Gilang Ramadhan', room: '119', masuk: '2026-09-01', job: 'Mahasiswa', wa: '0836-7788-9900', uni: 'UMM', paidThrough: 'all' },
+  { name: 'Irfan Maulana', stayMonths: 3, room: '117', masuk: '2026-08-01', job: 'Mahasiswa', wa: '0857-5566-7788', uni: 'ITN', paidThrough: 'all' },
+  { name: 'Putri Wulandari', stayMonths: 6, room: '118', masuk: '2026-07-15', job: 'Mahasiswi', wa: '0821-6677-8899', uni: 'POLINEMA', paidThrough: 'all', dailyRateEnabled: true },
+  { name: 'Gilang Ramadhan', stayMonths: 1, room: '119', masuk: '2026-09-01', job: 'Mahasiswa', wa: '0836-7788-9900', uni: 'UMM', paidThrough: 'all' },
 ];
 
 export const applications = [
@@ -99,14 +99,14 @@ export const applications = [
     alamat: 'Jl. Melati No. 8, Kediri', nik: '3506121205030002', wa: '0857-1234-5678',
     job: 'Mahasiswa', uni: 'POLINEMA', wali: 'Sutrisno', waliStatus: 'Ayah', waWali: '0857-0000-1111',
     emergency2Name: 'Rina Pratomo', emergency2Rel: 'Kakak', emergency2Wa: '0857-2222-3333',
-    sumber: 'Instagram', masuk: '2026-10-01',
+    sumber: 'Instagram', masuk: '2026-10-01', stayMonths: 12,
   },
   {
     name: 'Kevin Aditya', tempatLahir: 'Surabaya', tglLahir: '2002-11-03',
     alamat: 'Jl. Kenanga No. 21, Surabaya', nik: '3578030311020003', wa: '0812-9999-8888',
     job: 'Karyawan/Pegawai', uni: '', wali: 'Rahmawati', waliStatus: 'Ibu', waWali: '0812-2222-3333',
     emergency2Name: 'Doni Aditya', emergency2Rel: 'Paman/Bibi', emergency2Wa: '0812-4444-5555',
-    sumber: 'Rekomendasi teman/kenalan', masuk: '2026-10-15',
+    sumber: 'Rekomendasi teman/kenalan', masuk: '2026-10-15', stayMonths: 6,
   },
 ];
 

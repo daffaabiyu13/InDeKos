@@ -21,7 +21,7 @@ import db, { tx, logActivity, getMeta, setMeta } from './db.js';
 import { getSettings } from './settings.js';
 import {
   todayISO, nowStamp, parseISO, clampDate, shiftMonth, addDays, daysBetween,
-  monthsBetween, fmtDate, fmtRp, randomId,
+  monthsBetween, fmtDate, fmtRp, randomId, addMonths,
 } from './util.js';
 import * as seed from './data.js';
 
@@ -240,6 +240,9 @@ export function residentSummary(r, today = todayISO()) {
     overdueCount: overdue.length,
     nextDue: next?.dueDate || '',
     rentAmount: rentOf(r),
+    // Rencana lama tinggal (informasi saja — penagihan tetap bulanan).
+    stayEnd: r.stayMonths ? addMonths(r.masuk, r.stayMonths) : '',
+    stayDaysLeft: r.stayMonths ? daysBetween(today, addMonths(r.masuk, r.stayMonths)) : null,
     dailyRateAmount: dailyRateOf(r),
     roomType: roomTypeOf(r.room)?.name || '',
   };
