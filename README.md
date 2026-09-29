@@ -107,6 +107,13 @@ Token WhatsApp, Midtrans Server Key, refresh token Google, dan API key Claude
    - **Reminder sebelum jatuh tempo** (default H-3, on/off global & per penghuni)
    - **Kirim invoice otomatis saat terbit** (on/off)
 
+**Bukti pelunasan otomatis** (aktif secara default, bisa dimatikan di Pengaturan →
+WhatsApp): begitu invoice lunas — dicatat admin, pembayaran QRIS diverifikasi, atau
+webhook Midtrans — penghuni langsung menerima pesan "pembayaran sudah kami terima"
+berisi nomor invoice, nominal, metode, link kwitansi, dan tagihan berikutnya /
+sisa tunggakan. Tiap invoice hanya dikirimi satu kali (bisa kirim ulang manual lewat
+tombol **Bukti**); invoice yang sudah lunas sebelum fitur ini ada tidak dikirimi.
+
 Scheduler berjalan tiap 30 menit. Setiap pesan dicatat (Pembayaran → Notifikasi WA)
 dan tidak pernah terkirim dua kali. Tanpa gateway, tombol **Kirim** membuka wa.me manual.
 

@@ -57,6 +57,7 @@ async function call(method, path, body, token) {
 }
 
 const P = (await call('POST', '/auth/login', { username: 'pemilik', password: 'pemilik123' })).data.token;
+const A = (await call('POST', '/auth/login', { username: 'admin', password: 'admin123' })).data.token;
 
 console.log('— Fonnte');
 let f = await call('PUT', '/settings', { waProvider: 'fonnte', waToken: 'FONNTE-OK', reminderEnabled: false, invoiceAutoSend: false }, P);
@@ -102,6 +103,43 @@ await call('POST', '/notifications/run', null, P);
 ok(wa.length === again, 'no duplicate sends on second run');
 r = await call('GET', '/notifications', null, P);
 ok(r.data.ready && r.data.log.length >= 2, `delivery log recorded (${r.data.log.length})`);
+
+console.log('— Bukti pelunasan via WhatsApp');
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+const waitMsg = async (pred, ms = 5000) => { for (let t = 0; t < ms; t += 100) { const m = wa.find(pred); if (m) return m; await sleep(100); } return null; };
+const lunasMsgs = () => wa.filter((m) => m.message.includes('pembayaran Anda sudah kami terima'));
+r = await call('POST', '/notifications/run', null, P);
+ok(r.data.receipts.sent === 0 && lunasMsgs().length === 0, 'invoice yang lunas sebelum fitur ada tidak dikirimi bukti');
+const openInv = (await call('GET', '/invoices?state=open', null, P)).data.filter((i) => i.wa && i.status === 'unpaid');
+const payInv = openInv[0];
+r = await call('POST', `/invoices/${payInv.id}/pay`, { method: 'Transfer' }, A);
+ok(r.status === 200 && r.data.status === 'paid' && r.data.receipt === 'queued', 'admin tandai lunas → bukti dijadwalkan', r.data?.receipt);
+const receipt = await waitMsg((m) => m.message.includes('pembayaran Anda sudah kami terima') && m.message.includes(payInv.number));
+ok(receipt && receipt.phone.startsWith('62') && /LUNAS/.test(receipt.message) && /Transfer/.test(receipt.message) && /\/invoice\/[A-Za-z0-9_-]{16}/.test(receipt.message),
+  'bukti pelunasan langsung terkirim (nomor invoice, LUNAS, metode, link kwitansi)', receipt?.message);
+await call('POST', `/invoices/${payInv.id}/pay`, { method: 'Transfer' }, A);
+await call('POST', '/notifications/run', null, P);
+await sleep(300);
+ok(lunasMsgs().filter((m) => m.message.includes(payInv.number)).length === 1, 'bukti tidak terkirim dua kali');
+r = await call('GET', '/notifications', null, P);
+ok(r.data.log.some((n) => n.kind === 'lunas' && n.status === 'terkirim' && n.number === payInv.number), 'tercatat di log notifikasi (jenis lunas)');
+// Konfirmasi dari halaman publik → admin verifikasi → bukti terkirim.
+const rcInv2 = openInv[1];
+await call('POST', `/public/invoice/${rcInv2.publicId}/confirm`, { method: 'QRIS' });
+await sleep(200);
+ok(!lunasMsgs().some((m) => m.message.includes(rcInv2.number)), 'klaim "sudah bayar" belum memicu bukti (menunggu verifikasi)');
+await call('POST', `/invoices/${rcInv2.id}/pay`, { method: 'QRIS' }, A);
+ok(Boolean(await waitMsg((m) => m.message.includes('pembayaran Anda sudah kami terima') && m.message.includes(rcInv2.number))), 'setelah admin verifikasi QRIS → bukti terkirim');
+await call('PUT', '/settings', { receiptAutoSend: false }, P);
+const rcInv3 = openInv[2];
+r = await call('POST', `/invoices/${rcInv3.id}/pay`, {}, A);
+await sleep(400);
+ok(r.data.receipt === 'off' && !lunasMsgs().some((m) => m.message.includes(rcInv3.number)), 'fitur dimatikan → tidak ada bukti otomatis');
+r = await call('POST', `/invoices/${rcInv3.id}/send`, { kind: 'lunas' }, A);
+ok(r.status === 200 && lunasMsgs().some((m) => m.message.includes(rcInv3.number)), 'kirim bukti manual tetap bisa');
+r = await call('POST', `/invoices/${openInv[3].id}/send`, { kind: 'lunas' }, A);
+ok(r.status === 400, 'bukti manual ditolak untuk invoice belum lunas');
+await call('PUT', '/settings', { receiptAutoSend: true }, P);
 
 console.log('— Google Calendar');
 r = await call('GET', '/gcal/auth-url', null, P);

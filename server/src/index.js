@@ -48,6 +48,7 @@ const pemilik = requireRole('pemilik');
 
 // Jalankan pekerjaan notifikasi/sync tanpa menahan respons.
 function kickJobs() {
+  notify.runReceipts().catch((e) => console.error('[notify]', e.message));
   notify.runAutoSend().catch((e) => console.error('[notify]', e.message));
   gcal.syncInvoices().catch((e) => console.error('[gcal]', e.message));
 }
@@ -365,8 +366,8 @@ app.post('/api/invoices/generate', h((_req, res) => {
 app.post('/api/invoices/:id/pay', h((req, res) => {
   const inv = billing.markPaid(req.params.id, { method: req.body?.method || 'Tunai', paidAt: req.body?.paidAt });
   if (!inv) throw bad('Invoice tidak ditemukan atau sudah dibatalkan.', 404);
-  kickJobs();
-  res.json(billing.decorateInvoice(inv));
+  kickJobs(); // termasuk bukti pelunasan via WA
+  res.json({ ...billing.decorateInvoice(inv), receipt: inv.receiptSentAt ? 'sent' : notify.receiptPlan(inv) });
 }));
 app.post('/api/invoices/:id/reject', h((req, res) => {
   const inv = billing.rejectConfirmation(req.params.id);
@@ -382,7 +383,9 @@ app.post('/api/invoices/:id/void', h((req, res) => {
 app.post('/api/invoices/:id/send', h(async (req, res) => {
   const inv = billing.getInvoice(req.params.id);
   if (!inv) throw bad('Invoice tidak ditemukan.', 404);
-  const result = await notify.sendInvoice(inv, { kind: req.body?.kind === 'reminder' ? 'reminder' : 'invoice' });
+  const kind = ['reminder', 'lunas'].includes(req.body?.kind) ? req.body.kind : 'invoice';
+  if (kind === 'lunas' && inv.status !== 'paid') throw bad('Bukti pelunasan hanya untuk invoice yang sudah lunas.');
+  const result = await notify.sendInvoice(inv, { kind });
   if (!result.ok) throw bad(`Gagal mengirim: ${result.error}`, 502);
   res.json(result);
 }));
@@ -563,8 +566,8 @@ app.post('/api/notifications/test', pemilik, h(async (req, res) => {
   res.json({ ...result, target: waNumber(target), provider: s.waProvider });
 }));
 app.post('/api/notifications/run', h(async (_req, res) => {
-  const [auto, rem] = [await notify.runAutoSend(), await notify.runReminders()];
-  res.json({ invoices: auto, reminders: rem });
+  const [auto, rem, rec] = [await notify.runAutoSend(), await notify.runReminders(), await notify.runReceipts()];
+  res.json({ invoices: auto, reminders: rem, receipts: rec });
 }));
 
 // ── Google Calendar ──
@@ -619,9 +622,10 @@ async function runJobs() {
     const purged = repo.purgeOldViolations();
     const sent = await notify.runAutoSend();
     const reminded = await notify.runReminders();
+    const receipts = await notify.runReceipts();
     const synced = await gcal.syncInvoices();
-    if (created || purged || sent.sent || reminded.sent || synced.created) {
-      console.log(`[jobs] invoice baru ${created} · pelanggaran dihapus ${purged} · WA invoice ${sent.sent || 0} · reminder ${reminded.sent || 0} · gcal +${synced.created || 0}`);
+    if (created || purged || sent.sent || reminded.sent || receipts.sent || synced.created) {
+      console.log(`[jobs] invoice baru ${created} · pelanggaran dihapus ${purged} · WA invoice ${sent.sent || 0} · reminder ${reminded.sent || 0} · bukti lunas ${receipts.sent || 0} · gcal +${synced.created || 0}`);
     }
   } catch (e) {
     console.error('[jobs]', e.message);

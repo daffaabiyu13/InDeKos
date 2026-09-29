@@ -99,7 +99,7 @@ export function InvoiceActions({ inv, reload, onPay }) {
     try {
       const res = await api.sendInvoice(inv.id, kind);
       if (res.via === 'link') { window.open(res.link, '_blank', 'noopener'); toast('Gateway WA belum diatur — membuka WhatsApp manual.'); }
-      else toast(`✅ ${kind === 'reminder' ? 'Reminder' : 'Invoice'} terkirim via WhatsApp.`);
+      else toast(`✅ ${kind === 'reminder' ? 'Reminder' : kind === 'lunas' ? 'Bukti pelunasan' : 'Invoice'} terkirim via WhatsApp.`);
       reload?.();
     } catch (e) { toast(`⚠️ ${e.message}`); }
   }
@@ -117,6 +117,7 @@ export function InvoiceActions({ inv, reload, onPay }) {
       {inv.status === 'menunggu' && <button className="btn btn-d btn-sm" onClick={reject}>Tolak</button>}
       {inv.status === 'unpaid' && <button className="btn btn-g btn-sm" onClick={() => send('invoice')} title="Kirim invoice via WhatsApp">Kirim</button>}
       {inv.status === 'unpaid' && <button className="btn btn-g btn-sm" onClick={() => send('reminder')} title="Kirim pengingat">🔔</button>}
+      {inv.status === 'paid' && <button className="btn btn-g btn-sm" onClick={() => send('lunas')} title={inv.receiptSentAt && inv.receiptSentAt !== '-' ? 'Bukti sudah terkirim — kirim ulang' : 'Kirim bukti pelunasan via WhatsApp'}>{inv.receiptSentAt && inv.receiptSentAt !== '-' ? '✅ Bukti' : 'Bukti'}</button>}
       <a className="btn btn-g btn-sm" href={`/invoice/${inv.publicId}`} target="_blank" rel="noreferrer">Lihat</a>
       {inv.status === 'unpaid' && <button className="btn btn-g btn-sm" onClick={voidIt} title="Batalkan">✕</button>}
     </div>
@@ -159,6 +160,14 @@ function InvoicesTab({ r, reload, onPay }) {
   );
 }
 
+const RECEIPT_NOTE = {
+  queued: 'Bukti pelunasan dikirim ke WhatsApp penghuni.',
+  sent: 'Bukti pelunasan sudah terkirim sebelumnya.',
+  'no-gateway': 'Gateway WA belum diatur — kirim bukti manual lewat tombol “Bukti”.',
+  'no-wa': 'Nomor WA penghuni kosong, bukti tidak terkirim.',
+  off: '',
+};
+
 export function PayModal({ inv, onClose, onDone }) {
   const toast = useToast();
   const [method, setMethod] = useState(inv.method || 'Transfer');
@@ -167,8 +176,8 @@ export function PayModal({ inv, onClose, onDone }) {
   async function submit() {
     setBusy(true);
     try {
-      await api.payInvoice(inv.id, { method, paidAt });
-      toast(`✅ ${inv.number} tercatat lunas.`);
+      const res = await api.payInvoice(inv.id, { method, paidAt });
+      toast(`✅ ${inv.number} lunas. ${RECEIPT_NOTE[res.receipt] || ''}`);
       onDone?.();
       onClose();
     } catch (e) { toast(`⚠️ ${e.message}`); } finally { setBusy(false); }

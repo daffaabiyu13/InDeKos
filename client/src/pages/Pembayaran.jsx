@@ -378,7 +378,7 @@ function NotifTab({ version, reload }) {
     setRunning(true);
     try {
       const r = await api.runNotifications();
-      toast(r.invoices.skipped && r.reminders.skipped ? 'Pengiriman otomatis nonaktif atau gateway belum diatur.' : `✅ ${r.invoices.sent || 0} invoice & ${r.reminders.sent || 0} reminder terkirim.`);
+      toast(r.invoices.skipped && r.reminders.skipped && r.receipts?.skipped ? 'Pengiriman otomatis nonaktif atau gateway belum diatur.' : `✅ ${r.invoices.sent || 0} invoice, ${r.reminders.sent || 0} reminder & ${r.receipts?.sent || 0} bukti lunas terkirim.`);
       reload();
     } catch (e) { toast(`⚠️ ${e.message}`); } finally { setRunning(false); }
   }
@@ -388,7 +388,7 @@ function NotifTab({ version, reload }) {
       <div className="ch">
         <div>
           <div className="ct">Log Pengiriman WhatsApp</div>
-          <div className="cs">{data.ready ? 'Gateway aktif — invoice & reminder H-3 terkirim otomatis sesuai pengaturan.' : 'Gateway belum diatur — tombol Kirim akan membuka WhatsApp manual.'}</div>
+          <div className="cs">{data.ready ? 'Gateway aktif — invoice, reminder H-3 & bukti pelunasan terkirim otomatis sesuai pengaturan.' : 'Gateway belum diatur — tombol Kirim akan membuka WhatsApp manual.'}</div>
         </div>
         <div style={{ display: 'flex', gap: 7 }}>
           {isPemilik && <button className="btn btn-g btn-sm" onClick={() => nav('/pengaturan#wa')}>Pengaturan WA</button>}
@@ -403,7 +403,7 @@ function NotifTab({ version, reload }) {
             {data.log.map((n) => (
               <tr key={n.id}>
                 <td className="tm">{timeAgo(n.createdAt)}</td>
-                <td>{n.kind === 'reminder' ? '🔔 Reminder' : n.kind === 'tes' ? '🧪 Tes' : '🧾 Invoice'}</td>
+                <td>{n.kind === 'reminder' ? '🔔 Reminder' : n.kind === 'tes' ? '🧪 Tes' : n.kind === 'lunas' ? '✅ Bukti lunas' : '🧾 Invoice'}</td>
                 <td><div className="tn">{n.number}</div><div className="tm">{n.name}</div></td>
                 <td className="tm">{n.target}</td>
                 <td>{n.status === 'terkirim' ? <span className="badge b-ok">Terkirim</span> : <span className="badge b-err" title={n.response}>Gagal</span>}{n.response && <div className="tm" style={{ overflowWrap: 'anywhere' }}>{n.response.slice(0, 140)}</div>}</td>

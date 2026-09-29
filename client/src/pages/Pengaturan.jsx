@@ -160,6 +160,10 @@ export default function Pengaturan({ onSaved }) {
               <label className="switch-row"><input type="checkbox" checked={Boolean(s.invoiceAutoSend)} onChange={set('invoiceAutoSend')} /> <strong>Kirim invoice otomatis saat terbit</strong></label>
               <div className="tm" style={{ marginTop: 4 }}>Termasuk invoice charge/denda dan invoice promo.</div>
             </div>
+            <div className="toggle-card">
+              <label className="switch-row"><input type="checkbox" checked={s.receiptAutoSend !== false} onChange={set('receiptAutoSend')} /> <strong>Kirim bukti pelunasan otomatis</strong></label>
+              <div className="tm" style={{ marginTop: 4 }}>Begitu invoice lunas (dicatat admin atau pembayaran QRIS diverifikasi), penghuni langsung menerima pesan “pembayaran diterima” + link kwitansi.</div>
+            </div>
             <TestSend defaultTarget={s.wa} ready={s.waProvider !== 'none' && s.waTokenSet} />
           </div>
         </div>

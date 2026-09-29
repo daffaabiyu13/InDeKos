@@ -235,6 +235,7 @@ ensureColumn('users', 'email', "TEXT NOT NULL DEFAULT ''"); // email Google untu
 ensureColumn('users', 'googleSub', "TEXT NOT NULL DEFAULT ''"); // ID akun Google yang ditautkan
 ensureColumn('applications', 'stayMonths', 'INTEGER'); // rencana lama tinggal (bulan), NULL = belum pasti
 ensureColumn('residents', 'stayMonths', 'INTEGER');
+ensureColumn('invoices', 'receiptSentAt', "TEXT NOT NULL DEFAULT ''"); // bukti pelunasan WA ('-' = tidak dikirim)
 ensureColumn('residents', 'stayFrom', "TEXT NOT NULL DEFAULT ''"); // awal hitungan rencana ('' = tanggal masuk)
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email != '';
@@ -395,6 +396,12 @@ if (!getMeta('stay_default_6')) {
     WHERE stayMonths = ? AND createdAt <= ? AND (stayFrom = '' OR stayFrom = ? OR stayFrom = ?)`).all(STAY_DEFAULT, ran, d1, d2));
   setMeta('stay_default_6_cycle', nowStamp());
   if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama dihitung ulang per siklus 6 bulan sejak tanggal masuk.`);
+}
+
+// Invoice yang sudah lunas sebelum fitur "bukti pelunasan via WA" ada tidak dikirimi pesan.
+if (!getMeta('receipt_backfill')) {
+  db.prepare("UPDATE invoices SET receiptSentAt = '-' WHERE status = 'paid' AND receiptSentAt = ''").run();
+  setMeta('receipt_backfill', nowStamp());
 }
 
 export default db;

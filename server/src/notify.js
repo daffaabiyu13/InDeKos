@@ -91,18 +91,43 @@ export function reminderMessage(inv, s = getSettings(), today = todayISO()) {
   ].join('\n');
 }
 
+// Bukti pelunasan — dikirim saat invoice berstatus lunas.
+export function receiptMessage(inv, s = getSettings()) {
+  const total = inv.amount + inv.uniqueCode;
+  const today = todayISO();
+  const open = inv.residentId ? db.prepare(`SELECT dueDate, amount, uniqueCode FROM invoices
+    WHERE residentId = ? AND status = 'unpaid' AND id != ? ORDER BY dueDate`).all(inv.residentId, inv.id) : [];
+  const overdue = open.filter((i) => i.dueDate < today);
+  const next = open.find((i) => i.dueDate >= today);
+  const after = overdue.length
+    ? `⚠️ Masih ada ${overdue.length} tagihan belum lunas (${fmtRp(overdue.reduce((a, i) => a + i.amount + i.uniqueCode, 0))}). Lihat semua tagihan: ${String(s.publicUrl || '').replace(/\/+$/, '')}/bayar`
+    : next ? `Tagihan berikutnya: ${fmtRp(next.amount + next.uniqueCode)}, jatuh tempo ${fmtDate(next.dueDate)}.` : '';
+  return [
+    `Halo ${inv.name}, pembayaran Anda sudah kami terima ✅`,
+    '',
+    `🧾 ${inv.number} — *LUNAS*`,
+    `📌 ${inv.description}`,
+    `💰 Dibayar: *${fmtRp(total)}*${inv.method ? ` (${inv.method})` : ''}`,
+    `📅 Tanggal bayar: ${fmtDate(String(inv.paidAt || today).slice(0, 10))}`,
+    '',
+    `Kwitansi: ${invoiceLink(inv, s)}`,
+    after,
+    `Terima kasih telah tinggal di *${s.namaKos}* 🙏`,
+  ].filter((line, i, arr) => line !== '' || arr[i - 1] !== '').join('\n');
+}
+
 // Manual send from the admin panel. Falls back to a wa.me link when no
 // gateway is configured so the admin can still send it by hand.
 export async function sendInvoice(inv, { kind = 'invoice' } = {}) {
   const s = getSettings();
-  const message = kind === 'reminder' ? reminderMessage(inv, s) : invoiceMessage(inv, s);
+  const message = kind === 'reminder' ? reminderMessage(inv, s) : kind === 'lunas' ? receiptMessage(inv, s) : invoiceMessage(inv, s);
   if (!gatewayReady(s)) {
     return { ok: true, via: 'link', link: `https://wa.me/${waNumber(inv.wa)}?text=${encodeURIComponent(message)}` };
   }
   const result = await sendWhatsApp(inv.wa, message, s);
   log(inv.id, kind, inv.wa, result);
   if (result.ok) {
-    db.prepare(`UPDATE invoices SET ${kind === 'reminder' ? 'remindedAt' : 'sentAt'} = ? WHERE id = ?`).run(nowStamp(), inv.id);
+    db.prepare(`UPDATE invoices SET ${kind === 'reminder' ? 'remindedAt' : kind === 'lunas' ? 'receiptSentAt' : 'sentAt'} = ? WHERE id = ?`).run(nowStamp(), inv.id);
   }
   return { ...result, via: 'gateway' };
 }
@@ -120,6 +145,34 @@ function singleFlight(key, fn) {
 
 export const runAutoSend = (limit) => singleFlight('autosend', () => doAutoSend(limit));
 export const runReminders = (limit) => singleFlight('reminders', () => doReminders(limit));
+export const runReceipts = (limit) => singleFlight('receipts', () => doReceipts(limit));
+
+// Status pengiriman bukti untuk ditampilkan setelah admin menandai lunas.
+export function receiptPlan(inv, s = getSettings()) {
+  if (s.receiptAutoSend === false) return 'off';
+  if (!gatewayReady(s)) return 'no-gateway';
+  if (!inv?.wa) return 'no-wa';
+  return 'queued';
+}
+
+// Kirim bukti pelunasan untuk invoice yang baru lunas (≤3 hari; gagal dicoba lagi di job berikutnya).
+async function doReceipts(limit = 50) {
+  const s = getSettings();
+  if (s.receiptAutoSend === false || !gatewayReady(s)) return { sent: 0, skipped: true };
+  const rows = db.prepare(`SELECT * FROM invoices WHERE status = 'paid' AND receiptSentAt = '' AND wa != ''
+    AND substr(paidAt, 1, 10) >= ? ORDER BY paidAt, id LIMIT ?`).all(addDays(todayISO(), -3), limit);
+  let sent = 0;
+  for (const inv of rows) {
+    const result = await sendWhatsApp(inv.wa, receiptMessage(inv, s), s);
+    log(inv.id, 'lunas', inv.wa, result);
+    if (result.ok) {
+      db.prepare('UPDATE invoices SET receiptSentAt = ? WHERE id = ?').run(nowStamp(), inv.id);
+      sent++;
+    }
+    if (rows.length > 1) await pause(1500);
+  }
+  return { sent };
+}
 
 // Kirim invoice yang baru terbit & belum pernah terkirim.
 async function doAutoSend(limit = 50) {
