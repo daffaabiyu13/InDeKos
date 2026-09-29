@@ -534,10 +534,13 @@ app.get('/api/mantan', h((_req, res) => res.json(db.prepare('SELECT * FROM manta
 // ── Notifikasi WhatsApp ──
 app.get('/api/notifications', h((_req, res) => res.json({ ready: notify.gatewayReady(), log: notify.recentNotifications() })));
 app.post('/api/notifications/test', pemilik, h(async (req, res) => {
-  const target = req.body?.target || getSettings().wa;
+  const s = getSettings();
+  const target = req.body?.target || s.wa;
   const result = await notify.sendWhatsApp(target, `✅ Tes notifikasi InDeKos berhasil (${new Date().toLocaleString('id-ID')}).`);
-  if (!result.ok) throw bad(`Gagal: ${result.error}`, 502);
-  res.json(result);
+  // Dicatat juga agar tampil di riwayat notifikasi (membantu diagnosa gateway).
+  notify.log(null, 'tes', waNumber(target), result);
+  if (!result.ok) throw bad(`Gagal: ${result.error}${result.response ? ` — respons ${s.waProvider}: ${result.response}` : ''}`, 502);
+  res.json({ ...result, target: waNumber(target), provider: s.waProvider });
 }));
 app.post('/api/notifications/run', h(async (_req, res) => {
   const [auto, rem] = [await notify.runAutoSend(), await notify.runReminders()];

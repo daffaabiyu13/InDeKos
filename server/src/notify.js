@@ -23,7 +23,7 @@ export async function sendWhatsApp(target, message, s = getSettings()) {
   try {
     let res;
     if (s.waProvider === 'fonnte') {
-      res = await fetch('https://api.fonnte.com/send', {
+      res = await fetch(process.env.FONNTE_API_URL || 'https://api.fonnte.com/send', { // env hanya untuk test
         method: 'POST',
         headers: { Authorization: s.waToken },
         body: new URLSearchParams({ target: phone, message, countryCode: '62' }),
@@ -54,7 +54,7 @@ export async function sendWhatsApp(target, message, s = getSettings()) {
   }
 }
 
-function log(invoiceId, kind, target, result) {
+export function log(invoiceId, kind, target, result) {
   db.prepare('INSERT INTO notifications(invoiceId,kind,target,status,response,createdAt) VALUES(?,?,?,?,?,?)')
     .run(invoiceId ?? null, kind, target, result.ok ? 'terkirim' : 'gagal', result.ok ? result.response || '' : result.error || '', nowStamp());
 }

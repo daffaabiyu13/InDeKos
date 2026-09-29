@@ -403,10 +403,10 @@ function NotifTab({ version, reload }) {
             {data.log.map((n) => (
               <tr key={n.id}>
                 <td className="tm">{timeAgo(n.createdAt)}</td>
-                <td>{n.kind === 'reminder' ? '🔔 Reminder' : '🧾 Invoice'}</td>
+                <td>{n.kind === 'reminder' ? '🔔 Reminder' : n.kind === 'tes' ? '🧪 Tes' : '🧾 Invoice'}</td>
                 <td><div className="tn">{n.number}</div><div className="tm">{n.name}</div></td>
                 <td className="tm">{n.target}</td>
-                <td>{n.status === 'terkirim' ? <span className="badge b-ok">Terkirim</span> : <span className="badge b-err" title={n.response}>Gagal</span>}{n.status !== 'terkirim' && <div className="tm">{n.response}</div>}</td>
+                <td>{n.status === 'terkirim' ? <span className="badge b-ok">Terkirim</span> : <span className="badge b-err" title={n.response}>Gagal</span>}{n.response && <div className="tm" style={{ overflowWrap: 'anywhere' }}>{n.response.slice(0, 140)}</div>}</td>
               </tr>
             ))}
           </tbody>

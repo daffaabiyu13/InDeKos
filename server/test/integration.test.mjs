@@ -8,7 +8,7 @@ let pass = 0; let fail = 0;
 const ok = (c, m, x = '') => { if (c) { pass++; console.log('  ✓', m); } else { fail++; console.log('  ✗', m, x); } };
 
 // ── Mock server: Wablas + Google OAuth/Calendar ──
-const wa = []; const events = new Map(); let seq = 0; let tokenCalls = 0;
+const wa = []; const fonnte = []; const events = new Map(); let seq = 0; let tokenCalls = 0;
 http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -17,6 +17,12 @@ http.createServer((req, res) => {
     if (req.url === '/api/send-message') {
       wa.push({ auth: req.headers.authorization, ...JSON.parse(body) });
       return json(200, { status: true, message: 'sent' });
+    }
+    if (req.url === '/fonnte/send') {
+      const p = new URLSearchParams(body);
+      fonnte.push({ auth: req.headers.authorization, type: req.headers['content-type'], target: p.get('target'), message: p.get('message') });
+      if (req.headers.authorization !== 'FONNTE-OK') return json(200, { status: false, reason: 'invalid token' });
+      return json(200, { detail: 'success! message in queue', id: ['1'], process: 'pending', status: true, target: [p.get('target')] });
     }
     if (req.url === '/token') {
       tokenCalls++;
@@ -43,6 +49,17 @@ async function call(method, path, body, token) {
 }
 
 const P = (await call('POST', '/auth/login', { username: 'pemilik', password: 'pemilik123' })).data.token;
+
+console.log('— Fonnte');
+let f = await call('PUT', '/settings', { waProvider: 'fonnte', waToken: 'FONNTE-OK', reminderEnabled: false, invoiceAutoSend: false }, P);
+f = await call('POST', '/notifications/test', { target: '0812-3456-789' }, P);
+ok(f.status === 200 && fonnte.at(-1)?.auth === 'FONNTE-OK' && fonnte.at(-1)?.target === '628123456789' && /Tes notifikasi/.test(fonnte.at(-1)?.message), 'Fonnte: token di header Authorization, target 62…, pesan terkirim');
+ok(/x-www-form-urlencoded/.test(fonnte.at(-1)?.type) && /message in queue/.test(f.data.response) && f.data.provider === 'fonnte', 'Fonnte: form-urlencoded & respons gateway ditampilkan');
+await call('PUT', '/settings', { waToken: 'SALAH' }, P);
+f = await call('POST', '/notifications/test', { target: '08123456789' }, P);
+ok(f.status === 502 && /invalid token/.test(f.data.error), 'Fonnte: token salah → alasan dari Fonnte ditampilkan', f.data?.error);
+f = await call('GET', '/notifications', null, P);
+ok(f.data.log.some((n) => n.kind === 'tes' && n.status === 'gagal') && f.data.log.some((n) => n.kind === 'tes' && n.status === 'terkirim'), 'tes kirim tercatat di log notifikasi');
 
 console.log('— WhatsApp gateway');
 let r = await call('PUT', '/settings', { waProvider: 'wablas', waBaseUrl: `http://localhost:${MOCK}`, waToken: 'SECRET-TOKEN', reminderEnabled: true, reminderDaysBefore: 3, invoiceAutoSend: true }, P);

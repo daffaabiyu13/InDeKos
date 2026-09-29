@@ -223,9 +223,18 @@ function TestSend({ defaultTarget, ready }) {
   const toast = useToast();
   const [target, setTarget] = useState(defaultTarget || '');
   const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null); // { ok, text }
   async function test() {
     setBusy(true);
-    try { await api.testNotification(target); toast('✅ Pesan tes terkirim. Cek WhatsApp tujuan.'); } catch (e) { toast(`⚠️ ${e.message}`); } finally { setBusy(false); }
+    setResult(null);
+    try {
+      const r = await api.testNotification(target);
+      setResult({ ok: true, text: `Diterima ${r.provider} untuk ${r.target}. Respons: ${r.response || '-'}` });
+      toast('✅ Diterima gateway. Cek WhatsApp tujuan.');
+    } catch (e) {
+      setResult({ ok: false, text: e.message });
+      toast(`⚠️ ${e.message}`);
+    } finally { setBusy(false); }
   }
   return (
     <div className="fg" style={{ marginBottom: 0, marginTop: 12 }}>
@@ -235,6 +244,14 @@ function TestSend({ defaultTarget, ready }) {
         <button className="btn btn-g btn-sm" onClick={test} disabled={!ready || busy} title={ready ? '' : 'Simpan gateway & token dulu'}>{busy ? 'Mengirim…' : 'Kirim Tes'}</button>
       </div>
       {!ready && <div className="field-hint">Pilih gateway, isi token, lalu klik Simpan Pengaturan sebelum tes.</div>}
+      {result && (
+        <div className={`test-result ${result.ok ? 'ok' : 'err'}`}>
+          {result.text}
+          {result.ok && /pending|queue/i.test(result.text) && (
+            <div style={{ marginTop: 4 }}>Status “pending/queue” berarti pesan masih antre di gateway — pastikan device di dashboard gateway berstatus <strong>connect</strong>.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

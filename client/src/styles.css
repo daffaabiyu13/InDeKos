@@ -608,6 +608,9 @@ button.fac:hover { border-color: var(--jade); color: var(--jade-d); }
 .risk-row { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--bdr); color: inherit; text-decoration: none; }
 .risk-row:last-child { border-bottom: none; }
 .risk-row:hover .badge.b-neu { border-color: var(--jade); }
+.test-result { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.test-result.ok { background: var(--ok-bg); color: var(--ok); }
+.test-result.err { background: var(--err-bg); color: var(--err); }
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 40px 16px; }
 
 /* ═══════════════════════════════════════════════════════════════
