@@ -146,10 +146,12 @@ ok(f.status === 401, 'upload not public');
 const f2 = await fetch(`${BASE}/files/${calon.ktpPhoto}?token=${A}`);
 ok(f2.status === 200, 'upload served to staff via token');
 const mayaNow = (await call('GET', `/residents/${maya.id}`, null, A)).data;
-const TODAY = process.env.APP_TODAY;
-const plus6 = `${Number(TODAY.slice(0, 4)) + (Number(TODAY.slice(5, 7)) + 6 > 12 ? 1 : 0)}-${String(((Number(TODAY.slice(5, 7)) + 5) % 12) + 1).padStart(2, '0')}-${TODAY.slice(8)}`;
-ok(mayaNow.stayMonths === 6 && mayaNow.stayStart === TODAY && mayaNow.stayEnd === plus6 && mayaNow.stayDaysLeft > 170,
-  `penghuni lama tanpa rencana → 6 bulan MULAI HARI INI (Maya: s/d ${plus6}, bukan lewat)`, JSON.stringify({ m: mayaNow.stayMonths, s: mayaNow.stayStart, e: mayaNow.stayEnd }));
+ok(mayaNow.stayMonths === 6 && mayaNow.stayStart === '2026-09-01' && mayaNow.stayEnd === '2027-03-01' && mayaNow.stayDaysLeft > 0,
+  'penghuni lama → 6 bulan per siklus sejak masuk (Maya masuk 1 Mar: siklus 1 Sep 2026 – 1 Mar 2027, tidak lewat)', JSON.stringify({ m: mayaNow.stayMonths, s: mayaNow.stayStart, e: mayaNow.stayEnd }));
+const fitri = (await call('GET', '/residents', null, A)).data.find((x) => x.name === 'Fitri Handayani');
+ok(fitri.stayMonths === 6 && fitri.stayStart === '2026-07-01' && fitri.stayEnd === '2027-01-01', 'Fitri masuk 1 Jan → siklus 1 Jul 2026 – 1 Jan 2027 (tanggal selesai = tanggal masuk)', JSON.stringify({ s: fitri.stayStart, e: fitri.stayEnd }));
+const budiNow = (await call('GET', `/residents/${budi.id}`, null, A)).data;
+ok(budiNow.stayMonths === 12 && budiNow.stayStart === budiNow.masuk, 'rencana yang sudah diisi (Budi 12 bln) tidak diubah migrasi');
 const gilang = (await call('GET', '/residents', null, A)).data.find((x) => x.name === 'Gilang Ramadhan');
 ok(gilang.stayMonths === 1 && gilang.stayStart === gilang.masuk, 'rencana yang sudah diisi tetap dihitung dari tanggal masuk');
 const noPlan = (await call('GET', '/residents', null, A)).data.filter((x) => !x.stayMonths).map((x) => x.name);
@@ -166,7 +168,7 @@ ok(r.status === 200 && r.data.stayMonths === 6 && r.data.stayEnd === '2027-04-05
 r = await call('PUT', `/residents/${calonRes.id}`, { stayMonths: null }, A);
 ok(r.data.stayMonths === null && r.data.stayEnd === '' && r.data.stayFrom === '', 'rencana tinggal bisa dikosongkan (belum pasti)');
 r = await call('PUT', `/residents/${maya.id}`, { stayMonths: 12 }, A);
-ok(r.data.stayStart === TODAY && r.data.stayMonths === 12, 'perpanjang penghuni lama → tetap dihitung dari awal rencananya');
+ok(r.data.stayStart === '2026-09-01' && r.data.stayEnd === '2027-09-01', 'perpanjang penghuni lama → tetap dihitung dari awal siklusnya');
 const aneh = (await call('GET', '/applications?status=pending', null, A)).data.find((a) => a.name === 'Aneh');
 r = await call('POST', `/applications/${aneh.id}/approve`, { room: '112', stayMonths: 24 }, A);
 ok(r.data.resident.stayMonths === 24, 'admin bisa menetapkan rencana tinggal saat verifikasi');

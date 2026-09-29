@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as seed from './data.js';
-import { hashPassword, nowStamp, todayISO } from './util.js';
+import { hashPassword, nowStamp, todayISO, addMonths } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SCHEMA_VERSION = 2;
@@ -364,21 +364,37 @@ function seedBase() {
 seedBase();
 
 // Migrasi satu kali: penghuni yang sudah ada tanpa rencana tinggal → 6 bulan,
-// dihitung MULAI HARI INI (bukan dari tanggal masuk) agar tidak langsung "lewat".
-// Penghuni baru tidak terpengaruh; rencana yang sudah diisi tidak diubah.
+// dihitung PER SIKLUS 6 BULAN SEJAK TANGGAL MASUK: dipakai siklus yang belum lewat
+// (mis. masuk 1 Jan, hari ini 29 Sep → siklus 1 Jul–1 Jan). Tanggal selesai selalu
+// jatuh di tanggal masuk dan tidak ada yang langsung "lewat".
+// Penghuni baru tidak terpengaruh; rencana yang diisi sendiri tidak diubah.
+const STAY_DEFAULT = 6;
+function cycleStart(masuk, months, today) {
+  let k = 1;
+  while (addMonths(masuk, months * k) < today && k < 240) k++;
+  return k === 1 ? '' : addMonths(masuk, months * (k - 1)); // '' = mulai tanggal masuk
+}
+function applyCycle(rows) {
+  const today = todayISO();
+  const upd = db.prepare('UPDATE residents SET stayMonths = ?, stayFrom = ? WHERE id = ?');
+  tx(() => { for (const r of rows) upd.run(STAY_DEFAULT, cycleStart(r.masuk, STAY_DEFAULT, today), r.id); });
+  return rows.length;
+}
 if (!getMeta('stay_default_6')) {
-  const n = db.prepare('UPDATE residents SET stayMonths = 6, stayFrom = ? WHERE stayMonths IS NULL').run(todayISO()).changes;
+  const n = applyCycle(db.prepare('SELECT id, masuk FROM residents WHERE stayMonths IS NULL').all());
   setMeta('stay_default_6', nowStamp());
-  setMeta('stay_default_6_from_today', nowStamp());
-  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama diisi 6 bulan (mulai ${todayISO()}).`);
-} else if (!getMeta('stay_default_6_from_today')) {
-  // Database yang sempat menjalankan versi sebelumnya (6 bulan dari tanggal masuk):
-  // geser awal hitungan penghuni hasil migrasi itu ke tanggal migrasi dijalankan.
+  setMeta('stay_default_6_cycle', nowStamp());
+  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama diisi 6 bulan (per siklus sejak tanggal masuk).`);
+} else if (!getMeta('stay_default_6_cycle')) {
+  // Database yang sempat menjalankan versi sebelumnya (6 bln dari masuk / dari hari migrasi):
+  // hitung ulang penghuni hasil migrasi itu dengan siklus sejak tanggal masuk.
   const ran = getMeta('stay_default_6');
-  const n = db.prepare("UPDATE residents SET stayFrom = ? WHERE stayMonths = 6 AND stayFrom = '' AND createdAt <= ?")
-    .run(String(ran).slice(0, 10), ran).changes;
-  setMeta('stay_default_6_from_today', nowStamp());
-  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama kini dihitung mulai ${String(ran).slice(0, 10)}.`);
+  const d1 = String(ran).slice(0, 10);
+  const d2 = String(getMeta('stay_default_6_from_today') || '').slice(0, 10);
+  const n = applyCycle(db.prepare(`SELECT id, masuk FROM residents
+    WHERE stayMonths = ? AND createdAt <= ? AND (stayFrom = '' OR stayFrom = ? OR stayFrom = ?)`).all(STAY_DEFAULT, ran, d1, d2));
+  setMeta('stay_default_6_cycle', nowStamp());
+  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama dihitung ulang per siklus 6 bulan sejak tanggal masuk.`);
 }
 
 export default db;

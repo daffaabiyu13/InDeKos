@@ -231,7 +231,7 @@ function BillingTab({ r, reload }) {
             <input className="fi" inputMode="numeric" disabled={!isPemilik} placeholder={`Kosong = ikut harga tipe (${fmtRp(r.rentAmount)})`} value={f.rent} onChange={set('rent')} />
           </div>
           <StayInput value={f.stayMonths} masuk={r.stayStart || r.masuk} onChange={(v) => setF((x) => ({ ...x, stayMonths: v }))}
-            hint={`Dihitung mulai ${fmtDate(r.stayStart || r.masuk)}${r.stayStart && r.stayStart !== r.masuk ? ' (tanggal rencana diisi otomatis)' : ' (tanggal masuk)'}. Bila penghuni memperpanjang, tambah angkanya. AI akan mengingatkan menjelang selesai.`} />
+            hint={`Dihitung mulai ${fmtDate(r.stayStart || r.masuk)}${r.stayStart && r.stayStart !== r.masuk ? ` (siklus berjalan sejak tanggal masuk ${fmtDate(r.masuk)})` : ' (tanggal masuk)'}. Bila penghuni memperpanjang, tambah angkanya. AI akan mengingatkan menjelang selesai.`} />
           <div className="fg">
             <label className="switch-row"><input type="checkbox" checked={f.dailyRateEnabled} onChange={set('dailyRateEnabled')} /> Aktifkan rate harian</label>
             <div className="field-hint">Hari di luar periode penuh (masuk/keluar di tengah periode) ditagih per hari, sehingga tidak ada hari yang tidak dibayar. Jika nonaktif, hari tersebut tidak ditagih.</div>
