@@ -241,8 +241,9 @@ export function residentSummary(r, today = todayISO()) {
     nextDue: next?.dueDate || '',
     rentAmount: rentOf(r),
     // Rencana lama tinggal (informasi saja — penagihan tetap bulanan).
-    stayEnd: r.stayMonths ? addMonths(r.masuk, r.stayMonths) : '',
-    stayDaysLeft: r.stayMonths ? daysBetween(today, addMonths(r.masuk, r.stayMonths)) : null,
+    stayStart: r.stayMonths ? (r.stayFrom || r.masuk) : '',
+    stayEnd: r.stayMonths ? addMonths(r.stayFrom || r.masuk, r.stayMonths) : '',
+    stayDaysLeft: r.stayMonths ? daysBetween(today, addMonths(r.stayFrom || r.masuk, r.stayMonths)) : null,
     dailyRateAmount: dailyRateOf(r),
     roomType: roomTypeOf(r.room)?.name || '',
   };

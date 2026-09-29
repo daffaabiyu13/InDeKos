@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as seed from './data.js';
-import { hashPassword, nowStamp } from './util.js';
+import { hashPassword, nowStamp, todayISO } from './util.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SCHEMA_VERSION = 2;
@@ -235,6 +235,7 @@ ensureColumn('users', 'email', "TEXT NOT NULL DEFAULT ''"); // email Google untu
 ensureColumn('users', 'googleSub', "TEXT NOT NULL DEFAULT ''"); // ID akun Google yang ditautkan
 ensureColumn('applications', 'stayMonths', 'INTEGER'); // rencana lama tinggal (bulan), NULL = belum pasti
 ensureColumn('residents', 'stayMonths', 'INTEGER');
+ensureColumn('residents', 'stayFrom', "TEXT NOT NULL DEFAULT ''"); // awal hitungan rencana ('' = tanggal masuk)
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email != '';
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_gsub ON users(googleSub) WHERE googleSub != '';
@@ -362,12 +363,22 @@ function seedBase() {
 }
 seedBase();
 
-// Migrasi satu kali: penghuni yang sudah ada tanpa rencana tinggal → 6 bulan.
-// Hanya berjalan sekali per database (dicatat di meta); penghuni baru tidak terpengaruh.
+// Migrasi satu kali: penghuni yang sudah ada tanpa rencana tinggal → 6 bulan,
+// dihitung MULAI HARI INI (bukan dari tanggal masuk) agar tidak langsung "lewat".
+// Penghuni baru tidak terpengaruh; rencana yang sudah diisi tidak diubah.
 if (!getMeta('stay_default_6')) {
-  const n = db.prepare('UPDATE residents SET stayMonths = 6 WHERE stayMonths IS NULL').run().changes;
+  const n = db.prepare('UPDATE residents SET stayMonths = 6, stayFrom = ? WHERE stayMonths IS NULL').run(todayISO()).changes;
   setMeta('stay_default_6', nowStamp());
-  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama diisi 6 bulan.`);
+  setMeta('stay_default_6_from_today', nowStamp());
+  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama diisi 6 bulan (mulai ${todayISO()}).`);
+} else if (!getMeta('stay_default_6_from_today')) {
+  // Database yang sempat menjalankan versi sebelumnya (6 bulan dari tanggal masuk):
+  // geser awal hitungan penghuni hasil migrasi itu ke tanggal migrasi dijalankan.
+  const ran = getMeta('stay_default_6');
+  const n = db.prepare("UPDATE residents SET stayFrom = ? WHERE stayMonths = 6 AND stayFrom = '' AND createdAt <= ?")
+    .run(String(ran).slice(0, 10), ran).changes;
+  setMeta('stay_default_6_from_today', nowStamp());
+  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama kini dihitung mulai ${String(ran).slice(0, 10)}.`);
 }
 
 export default db;

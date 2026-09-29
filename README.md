@@ -147,8 +147,9 @@ penghuni, atau kapan saja di **Detail Penghuni → Pengaturan Penagihan** (mis. 
 penghuni memperpanjang). Tanggal selesai = tanggal masuk + rencana, tampil di
 detail penghuni, daftar penghuni, dan denah kamar (kuning ≤ 30 hari, merah bila
 lewat). Rencana ini **informasi saja** — tagihan tetap bulanan. Penghuni lama yang
-belum punya rencana otomatis diisi **6 bulan** (sekali saja saat server pertama
-dijalankan setelah pembaruan). AI mengingatkan
+belum punya rencana otomatis diisi **6 bulan dihitung mulai tanggal pembaruan**
+(sekali saja saat server pertama dijalankan), jadi tidak langsung berstatus
+"lewat". Rencana yang diisi lewat formulir/admin dihitung dari tanggal masuk. AI mengingatkan
 rencana yang segera berakhir (Dashboard, Penghuni, Kamar "berpotensi kosong").
 
 ## AI Asisten (di setiap menu)

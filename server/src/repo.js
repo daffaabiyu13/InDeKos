@@ -118,6 +118,8 @@ export function updateResident(id, patch) {
     db.prepare("UPDATE invoices SET room = ? WHERE residentId = ? AND status IN ('unpaid','menunggu')").run(String(patch.room), cur.id);
   }
   if (patch.wa) db.prepare("UPDATE invoices SET wa = ? WHERE residentId = ? AND status IN ('unpaid','menunggu')").run(patch.wa, cur.id);
+  // Rencana dikosongkan → awal hitungan kembali ke tanggal masuk.
+  if ('stayMonths' in patch && !merged.stayMonths) db.prepare("UPDATE residents SET stayFrom = '' WHERE id = ?").run(cur.id);
   billing.generateForResident(cur.id);
   return residentDetail(cur.id);
 }

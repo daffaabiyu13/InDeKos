@@ -266,7 +266,7 @@ const builders = {
     if (v.length) out.push(I('warn', '🚨', `${plural(v.length, 'pelanggaran')} tercatat`, v.slice(0, 3).map((x) => `- ${fmtDate(x.date)} · ${x.categoryName || 'Lainnya'} (${x.sp})`).join('\n')));
     if (r.stayMonths) {
       const tone2 = r.stayDaysLeft < 0 ? 'warn' : r.stayDaysLeft <= 30 ? 'warn' : 'info';
-      out.push(I(tone2, '📆', `Rencana tinggal ${fmtStay(r.stayMonths)}`, `Masuk ${fmtDate(r.masuk)} → rencana selesai **${fmtDate(r.stayEnd)}** (${stayWhen(r)}). Sudah tinggal ${r.tenureMonths} bulan.`));
+      out.push(I(tone2, '📆', `Rencana tinggal ${fmtStay(r.stayMonths)}`, `${r.stayStart !== r.masuk ? `Dihitung mulai ${fmtDate(r.stayStart)} (masuk ${fmtDate(r.masuk)})` : `Masuk ${fmtDate(r.masuk)}`} → rencana selesai **${fmtDate(r.stayEnd)}** (${stayWhen(r)}). Sudah tinggal ${r.tenureMonths} bulan.`));
     } else {
       out.push(I('info', '📆', 'Rencana tinggal belum diisi', 'Isi di tab **Pengaturan Penagihan** agar AI bisa mengingatkan saat masa tinggal hampir selesai.'));
     }
@@ -653,7 +653,7 @@ export function contextFor(scope, id, S = snapshot(), viewer = null) {
       id: r.id, nama: r.name, kamar: r.room, tipe: r.roomType, pekerjaan: r.job || '', kampus: r.uni || '',
       masuk: r.masuk, lamaBulan: r.tenureMonths, sewa: r.rentAmount, jatuhTempoTgl: r.dueDay,
       statusBayar: r.payStatus, tunggakan: r.outstanding, jatuhTempoBerikut: r.nextDue,
-      rencanaTinggalBulan: r.stayMonths || null, rencanaSelesai: r.stayEnd || null,
+      rencanaTinggalBulan: r.stayMonths || null, rencanaMulai: r.stayStart || null, rencanaSelesai: r.stayEnd || null,
       riwayatBayar: { total: r.pay.paid, terlambat: r.pay.late, rataTelatHari: r.pay.avgLateDays },
       risiko: `${r.risk.level} (${r.risk.score}): ${r.risk.why.join('; ')}`,
     })),

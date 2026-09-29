@@ -66,7 +66,7 @@ export function StayPill({ r, short = false }) {
   const cls = left < 0 ? ' over' : left <= 30 ? ' soon' : '';
   const when = left < 0 ? `lewat ${-left} hari` : left === 0 ? 'hari ini' : left <= 60 ? `${left} hari lagi` : '';
   return (
-    <span className={`stay-pill${cls}`} title={`Rencana tinggal ${fmtStay(r.stayMonths)} sejak ${fmtDate(r.masuk)}`}>
+    <span className={`stay-pill${cls}`} title={`Rencana tinggal ${fmtStay(r.stayMonths)} mulai ${fmtDate(r.stayStart || r.masuk)}`}>
       📆 {short ? '' : `Rencana ${fmtStay(r.stayMonths)} · `}s/d {fmtDate(r.stayEnd)}{when ? ` (${when})` : ''}
     </span>
   );
