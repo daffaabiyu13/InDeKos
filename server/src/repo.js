@@ -3,6 +3,7 @@
 import db, { tx, logActivity } from './db.js';
 import { getSettings } from './settings.js';
 import * as billing from './billing.js';
+import { reservedRooms } from './transfers.js';
 import { todayISO, nowStamp, parseISO, shiftMonth, parseStayMonths } from './util.js';
 
 const parseFacilities = (f) => { try { return JSON.parse(f || '[]'); } catch { return []; } };
@@ -17,6 +18,7 @@ export function listRoomTypes() {
 export function listRooms() {
   const residents = db.prepare('SELECT * FROM residents').all();
   const byRoom = Object.fromEntries(residents.map((r) => [r.room, r]));
+  const reserved = reservedRooms();
   return db.prepare(`SELECT r.*, t.name AS typeName, t.price AS typePrice, t.facilities AS typeFacilities
       FROM rooms r LEFT JOIN room_types t ON t.id = r.typeId
       ORDER BY CAST(r.number AS INTEGER), r.number`).all()
@@ -28,6 +30,7 @@ export function listRooms() {
         facilities: parseFacilities(room.typeFacilities),
         // perbaikan diprioritaskan agar kamar tak bisa ditempati saat diperbaiki
         status: room.maintenance ? 'mn' : res ? 'oc' : 'av',
+        reserved: !res && reserved[room.number] ? reserved[room.number] : null, // dipesan untuk pindah kamar
         resident: res ? { id: res.id, name: res.name, wa: res.wa, masuk: res.masuk, job: res.job, uni: res.uni, dueDay: res.dueDay, stayMonths: res.stayMonths, ...billing.residentSummary(res) } : null,
       };
     });
@@ -91,6 +94,7 @@ export function createResident(body) {
   const room = roomStatus(data.room);
   if (!room) throw Object.assign(new Error(`Kamar ${data.room} tidak ada.`), { status: 400 });
   if (room.status !== 'av') throw Object.assign(new Error(`Kamar ${data.room} ${room.status === 'mn' ? 'sedang perbaikan' : 'sudah terisi'}.`), { status: 409 });
+  if (room.reserved) throw Object.assign(new Error(`Kamar ${data.room} sudah dipesan untuk ${room.reserved.name} (pindah ${room.reserved.moveDate}).`), { status: 409 });
   const cols = RESIDENT_FIELDS.filter((f) => data[f] !== undefined);
   const info = db.prepare(`INSERT INTO residents(${cols.join(',')},createdAt) VALUES(${cols.map(() => '?').join(',')},?)`)
     .run(...cols.map((c) => data[c] ?? null), nowStamp());
@@ -105,7 +109,7 @@ export function updateResident(id, patch) {
   if (!cur) return null;
   if (patch.room && String(patch.room) !== cur.room) {
     const room = roomStatus(patch.room);
-    if (!room || room.status !== 'av') throw Object.assign(new Error(`Kamar ${patch.room} tidak tersedia.`), { status: 409 });
+    if (!room || room.status !== 'av' || (room.reserved && room.reserved.residentId !== cur.id)) throw Object.assign(new Error(`Kamar ${patch.room} tidak tersedia.`), { status: 409 });
   }
   const merged = normalizeResident({ ...cur, ...patch });
   const cols = RESIDENT_FIELDS.filter((f) => f in patch);
@@ -219,6 +223,7 @@ export function dashboard() {
       pendingConfirm: db.prepare("SELECT COUNT(*) AS n FROM invoices WHERE status = 'menunggu'").get().n,
       pendingApplications: db.prepare("SELECT COUNT(*) AS n FROM applications WHERE status = 'pending'").get().n,
       pendingExits: db.prepare("SELECT COUNT(*) AS n FROM exit_requests WHERE status = 'pending'").get().n,
+      pendingTransfers: db.prepare("SELECT COUNT(*) AS n FROM room_transfers WHERE status = 'pending'").get().n,
     },
     revenues: months.map((mo) => ({ m: mo.label, key: mo.key, v: paidInMonth(mo.key) })),
     activities: db.prepare('SELECT c, t, createdAt FROM activities ORDER BY id DESC LIMIT 8').all(),

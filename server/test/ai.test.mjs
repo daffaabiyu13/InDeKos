@@ -44,7 +44,7 @@ let r = await call('GET', '/ai/status', null, P);
 ok(r.status === 200 && r.data.mode === 'lokal' && r.data.enabled === true && r.data.model === 'claude-opus-5', 'status: lokal, aktif, model default claude-opus-5', JSON.stringify(r.data));
 r = await call('GET', '/ai/insights?scope=kamar', null);
 ok(r.status === 401, 'insight wajib login');
-const scopes = ['dashboard', 'penghuni', 'kamar', 'pembayaran', 'keuangan', 'pengeluaran', 'pendaftaran', 'keluar', 'pelanggaran', 'mantan', 'pengaturan', 'akun', 'ai'];
+const scopes = ['dashboard', 'penghuni', 'kamar', 'pembayaran', 'keuangan', 'pengeluaran', 'pendaftaran', 'keluar', 'pindah', 'pelanggaran', 'mantan', 'pengaturan', 'akun', 'ai'];
 let allGood = true;
 for (const sc of scopes) {
   const x = await call('GET', `/ai/insights?scope=${sc}`, null, A);
@@ -52,7 +52,7 @@ for (const sc of scopes) {
     && x.data.insights.every((i) => ['ok', 'warn', 'err', 'info'].includes(i.tone) && i.title && i.text);
   if (!good) { allGood = false; console.log('    scope gagal:', sc, x.status, JSON.stringify(x.data).slice(0, 200)); }
 }
-ok(allGood, `13 menu punya insight + saran pertanyaan`);
+ok(allGood, `${scopes.length} menu punya insight + saran pertanyaan`);
 const residents = (await call('GET', '/residents', null, P)).data;
 const budi = residents.find((x) => x.room === '103');
 r = await call('GET', `/ai/insights?scope=resident&id=${budi.id}`, null, P);
@@ -61,6 +61,21 @@ r = await call('GET', '/ai/insights?scope=../../etc', null, P);
 ok(r.status === 200 && r.data.scope === 'ai', 'scope tak dikenal → ai');
 r = await call('GET', '/ai/insights?scope=kamar', null, P);
 ok(r.data.insights.some((i) => /kamar kosong/.test(i.title) && /104/.test(i.text)), 'kamar: daftar kamar kosong dari data nyata');
+{
+  const today = process.env.APP_TODAY;
+  const prem = (await call('GET', `/transfers/rooms?residentId=${budi.id}`, null, P)).data.find((x) => /Premium/.test(x.typeName));
+  await call('POST', '/public/transfer', { name: 'Budi Santoso', room: '103', toRoom: prem.number, moveDate: today, reason: 'Ingin AC' });
+  r = await call('GET', '/ai/insights?scope=pindah', null, A);
+  const tf = r.data.insights.find((i) => /Budi Santoso: 103 →/.test(i.title));
+  ok(tf && tf.tone === 'warn' && /menunggak/.test(tf.text) && /\+Rp 400\.000\/bulan/.test(tf.text), 'pindah: pengajuan + peringatan tunggakan + selisih harga', JSON.stringify(tf));
+  ok(r.data.insights.some((i) => /Dampak pemasukan: \+Rp 400\.000/.test(i.title)) && r.data.insights.some((i) => /Kamar 103 kosong/.test(i.text)), 'pindah: dampak pemasukan & kamar yang akan kosong');
+  r = await call('GET', '/ai/insights?scope=dashboard', null, A);
+  ok(/pengajuan pindah kamar/.test(r.data.insights[0].text), 'dashboard: prioritas menyebut pengajuan pindah');
+  r = await call('POST', '/ai/chat', { scope: 'penghuni', message: 'Siapa yang mau pindah kamar?' }, A);
+  ok(/Budi Santoso: 103 →/.test(r.data.reply), 'chat lokal: pertanyaan pindah kamar dijawab dari data nyata');
+  const t = (await call('GET', '/transfers?status=pending', null, P)).data.find((x) => x.residentId === budi.id);
+  await call('POST', `/transfers/${t.id}/reject`, { reason: 'uji' }, P);
+}
 r = await call('GET', '/ai/insights?scope=akun', null, P);
 ok(r.data.insights[0].tone === 'err' && /pemilik/.test(r.data.insights[0].text) && /admin/.test(r.data.insights[0].text), 'akun (pemilik): deteksi password bawaan semua akun');
 r = await call('GET', '/ai/insights?scope=akun', null, A);

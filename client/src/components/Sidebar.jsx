@@ -24,6 +24,7 @@ const groups = [
     label: 'Administrasi',
     items: [
       { to: '/pendaftaran', key: 'pendaftaran', label: 'Pendaftaran', badge: 'pendingApplications' },
+      { to: '/pindah-kamar', key: 'pindah', label: 'Pindah Kamar', badge: 'pendingTransfers' },
       { to: '/pengajuan-keluar', key: 'keluar', label: 'Pengajuan Keluar', badge: 'pendingExits' },
       { to: '/pelanggaran', key: 'pelanggaran', label: 'Pelanggaran' },
       { to: '/mantan', key: 'mantan', label: 'Mantan Penghuni' },

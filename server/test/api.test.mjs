@@ -258,5 +258,86 @@ console.log('— Upgrade / downgrade tipe kamar');
   ok((await call('POST', '/rooms/change-type/preview', { numbers: ['999'], typeId: std.id }, P)).status === 404, 'kamar tak dikenal → 404');
 }
 
+console.log('— Pindah kamar');
+{
+  const TODAY = process.env.APP_TODAY;
+  const plusDays = (n) => new Date(Date.parse(`${TODAY}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  const types = (await call('GET', '/room-types', null, P)).data;
+  const std = types.find((t) => t.name === 'Standar'); const prem = types.find((t) => t.name.includes('Premium'));
+  const freeRooms = async () => (await call('GET', '/rooms', null, P)).data.filter((r) => r.status === 'av' && !r.reserved);
+  // Penghuni Standar harga normal dengan invoice sewa mendatang (untuk cek penyesuaian invoice).
+  let mover = null;
+  for (const r of (await call('GET', '/residents', null, P)).data.filter((x) => x.roomType === 'Standar' && !x.rent)) {
+    const inv = (await call('GET', `/residents/${r.id}`, null, P)).data.invoices;
+    if (inv.some((i) => i.kind === 'sewa' && i.status === 'unpaid' && i.amount === std.price && !i.promoId && i.periodStart > TODAY)) { mover = r; break; }
+  }
+  const first = mover.name.split(' ')[0].toLowerCase();
+
+  let x = await call('GET', `/public/transfer?name=${first}&room=${mover.room}`);
+  ok(x.status === 200 && x.data.room === mover.room && x.data.rooms.length > 0 && x.data.rooms.every((r) => typeof r.diff === 'number'), 'publik: cek identitas → daftar kamar kosong + selisih harga');
+  ok((await call('GET', `/public/transfer?name=salah&room=${mover.room}`)).status === 404, 'publik: nama tidak cocok → 404');
+  const premRoom = (await freeRooms()).find((r) => r.typeId === prem.id);
+  ok(Boolean(premRoom), `ada kamar Premium kosong untuk tujuan (${premRoom?.number})`);
+  const occupiedRoom = (await call('GET', '/rooms', null, P)).data.find((r) => r.status === 'oc' && r.number !== mover.room).number;
+  for (const [body, msg] of [
+    [{ toRoom: premRoom.number, moveDate: plusDays(-1) }, 'tanggal lampau'],
+    [{ toRoom: mover.room, moveDate: TODAY }, 'kamar tujuan = kamar sekarang'],
+    [{ toRoom: occupiedRoom, moveDate: TODAY }, 'kamar tujuan terisi'],
+    [{ moveDate: TODAY }, 'tanpa kamar/tipe tujuan'],
+  ]) ok([400, 409].includes((await call('POST', '/public/transfer', { name: first, room: mover.room, ...body })).status), `publik: ${msg} ditolak`);
+  x = await call('POST', '/public/transfer', { name: first, room: mover.room, toRoom: premRoom.number, moveDate: TODAY, reason: 'Ingin AC' });
+  ok(x.status === 201 && x.data.toRoom === premRoom.number, 'publik: pengajuan pindah terkirim');
+  ok((await call('POST', '/public/transfer', { name: first, room: mover.room, toRoom: premRoom.number, moveDate: TODAY })).status === 409, 'pengajuan ganda ditolak');
+  ok((await call('GET', '/dashboard', null, A)).data.stats.pendingTransfers >= 1, 'dashboard menghitung pengajuan pindah');
+  const t = (await call('GET', '/transfers?status=pending', null, A)).data.find((r) => r.residentId === mover.id);
+  ok(t && t.stillActive && t.fromPrice === std.price && t.toPrice === prem.price, 'admin melihat pengajuan (harga lama & baru)');
+  x = await call('POST', `/transfers/${t.id}/preview`, {}, A);
+  ok(x.status === 200 && x.data.immediate && x.data.oldPrice === std.price && x.data.newPrice === prem.price && x.data.futureInvoices.length > 0, 'pratinjau: langsung, harga baru, invoice mendatang disesuaikan');
+  const prorata = x.data.prorata;
+  const before = (await call('GET', `/residents/${mover.id}`, null, A)).data;
+  const futureIds = x.data.futureInvoices.map((i) => i.id);
+  x = await call('POST', `/transfers/${t.id}/approve`, {}, A);
+  ok(x.status === 200 && x.data.status === 'done', 'setujui (tanggal hari ini) → langsung dieksekusi');
+  const after = (await call('GET', `/residents/${mover.id}`, null, A)).data;
+  const roomsNow = (await call('GET', '/rooms', null, A)).data;
+  ok(after.room === premRoom.number && after.rentAmount === prem.price, `penghuni kini di kamar ${premRoom.number} dengan sewa Premium`);
+  ok(roomsNow.find((r) => r.number === before.room).status === 'av' && roomsNow.find((r) => r.number === premRoom.number).status === 'oc', 'kamar lama jadi kosong, kamar baru terisi');
+  ok(futureIds.every((id) => { const i = after.invoices.find((v) => v.id === id); return i.amount === prem.price && i.room === premRoom.number; }), 'invoice sewa mendatang ikut kamar & harga baru');
+  const charge = after.invoices.find((i) => i.kind === 'charge' && /Selisih pindah kamar/.test(i.description));
+  ok(!prorata || prorata.diff <= 0 || (charge && charge.amount === prorata.diff), `selisih periode berjalan ditagih pro-rata (${prorata ? `${prorata.days}/${prorata.periodDays} hari = ${prorata.diff}` : 'tidak ada'})`);
+  ok(before.invoices.filter((i) => i.periodStart < TODAY && i.kind === 'sewa').every((i) => after.invoices.find((v) => v.id === i.id).room === before.room), 'invoice periode lama tetap kamar lama');
+
+  // Dijadwalkan (tanggal mendatang) → kamar dipesan.
+  const mover2 = (await call('GET', '/residents', null, P)).data.find((r) => r.id !== mover.id && r.roomType === 'Standar' && !r.rent);
+  const target2 = (await freeRooms()).find((r) => r.number !== before.room);
+  x = await call('POST', `/residents/${mover2.id}/transfer`, { toRoom: target2.number, moveDate: plusDays(10), note: 'Renovasi' }, P);
+  ok(x.status === 200 && x.data.status === 'approved' && x.data.scheduled && x.data.source === 'admin', 'admin pindahkan langsung (tanggal mendatang) → dijadwalkan');
+  const reservedRoom = (await call('GET', '/rooms', null, A)).data.find((r) => r.number === target2.number);
+  ok(reservedRoom.status === 'av' && reservedRoom.reserved?.name === mover2.name, 'kamar tujuan ditandai "dipesan"');
+  ok((await call('POST', '/residents', { name: 'Penyerobot', room: target2.number, masuk: TODAY, wa: '0812' }, A)).status === 409, 'kamar dipesan tidak bisa diisi penghuni baru');
+  ok(!(await call('GET', `/public/transfer?name=${first}&room=${premRoom.number}`)).data.rooms.some((r) => r.number === target2.number), 'kamar dipesan tidak muncul untuk penghuni lain');
+  ok((await call('DELETE', `/rooms/${target2.number}`, null, P)).status === 409, 'kamar dipesan tidak bisa dihapus');
+  ok((await call('POST', `/residents/${mover.id}/transfer`, { toRoom: target2.number, moveDate: TODAY }, P)).status === 409, 'penghuni lain tidak bisa pindah ke kamar yang dipesan');
+  const sched = (await call('GET', '/transfers?status=approved', null, A)).data.find((r) => r.residentId === mover2.id);
+  x = await call('POST', `/transfers/${sched.id}/reject`, { reason: 'Batal' }, A);
+  ok(x.data.status === 'cancelled' && !(await call('GET', '/rooms', null, A)).data.find((r) => r.number === target2.number).reserved, 'batalkan jadwal → kamar dilepas');
+  ok((await call('GET', `/residents/${mover2.id}`, null, A)).data.room === mover2.room, 'penghuni tetap di kamar lama setelah dibatalkan');
+
+  // Pengajuan berdasarkan tipe saja → admin memilih kamar.
+  const m2first = mover2.name.split(' ')[0].toLowerCase();
+  x = await call('POST', '/public/transfer', { name: m2first, room: mover2.room, toTypeId: std.id, moveDate: TODAY });
+  const t3 = (await call('GET', '/transfers?status=pending', null, A)).data.find((r) => r.residentId === mover2.id);
+  ok(x.status === 201 && t3 && !t3.toRoom && t3.toTypeName === 'Standar', 'pengajuan hanya tipe (tanpa nomor kamar)');
+  ok((await call('POST', `/transfers/${t3.id}/approve`, {}, A)).status === 400, 'setujui tanpa memilih kamar ditolak');
+  const stdRoom = (await freeRooms()).find((r) => r.typeId === std.id);
+  x = await call('POST', `/transfers/${t3.id}/approve`, { toRoom: stdRoom.number, keepCustomRent: false }, A);
+  ok(x.data.status === 'done' && (await call('GET', `/residents/${mover2.id}`, null, A)).data.room === stdRoom.number, `admin memilih kamar ${stdRoom.number} → selesai (harga tetap Standar)`);
+  ok(!x.data.result.prorata, 'pindah ke tipe setara → tanpa selisih pro-rata');
+  const hist = (await call('GET', '/transfers', null, A)).data;
+  ok(hist.filter((r) => r.status === 'done').length >= 2, 'riwayat pindah kamar tersimpan');
+  const h1 = hist.find((r) => r.id === t.id);
+  ok(h1.fromPrice === std.price && h1.toPrice === prem.price && h1.fromTypeName === 'Standar' && h1.toTypeNameNow.includes('Premium'), 'riwayat memakai harga & tipe saat pindah (bukan kondisi sekarang)', JSON.stringify(h1));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

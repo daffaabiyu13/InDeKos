@@ -120,7 +120,7 @@ export default function Login() {
         </form>
         <div className="login-links">
           <span>Penghuni?</span>
-          <a href="/bayar">Bayar sewa</a>·<a href="/form">Daftar kos</a>·<a href="/keluar">Ajukan keluar</a>
+          <a href="/bayar">Bayar sewa</a>·<a href="/form">Daftar kos</a>·<a href="/pindah">Pindah kamar</a>·<a href="/keluar">Ajukan keluar</a>
         </div>
       </div>
     </div>

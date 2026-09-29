@@ -195,6 +195,28 @@ console.log('— Upgrade kamar: pemberitahuan WA');
   ok(x.data.notified?.[0]?.ok && m && /upgrade/.test(m.message) && /Rp 1\.700\.000\/bulan/.test(m.message) && /AC baru dipasang/.test(m.message), 'penghuni diberi tahu via WA (tipe baru, harga baru, catatan)', m?.message);
 }
 
+console.log('— Pindah kamar: pemberitahuan WA');
+{
+  const plus = (n) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+  const mover = (await call('GET', '/residents', null, P)).data.find((x) => x.wa && !x.rent);
+  const free = (await call('GET', `/transfers/rooms?residentId=${mover.id}`, null, P)).data;
+  const [dest, dest2] = [free[0], free.find((x) => x.number !== free[0].number)];
+  let x = await call('POST', `/residents/${mover.id}/transfer`, { toRoom: dest.number, moveDate: plus(5), notify: true }, P);
+  const sched = wa.find((m) => m.message.includes('pindah kamar Anda *disetujui*') && m.message.includes(`Kamar ${dest.number}`));
+  ok(x.data.scheduled && sched && String(sched.phone).replace(/\D/g, '').endsWith(mover.wa.replace(/\D/g, '').slice(-8)), 'dijadwalkan → penghuni dikabari tanggal & kamar tujuan', sched?.message);
+  x = await call('POST', `/transfers/${x.data.id}/reject`, { reason: 'Kamar dipakai renovasi' }, P);
+  const cancel = wa.find((m) => m.message.includes('pindah kamar Anda dibatalkan') && m.message.includes('renovasi'));
+  ok(x.data.status === 'cancelled' && cancel, 'pembatalan dikabari beserta alasan');
+  const n = wa.length;
+  x = await call('POST', `/residents/${mover.id}/transfer`, { toRoom: dest2.number, moveDate: today, notify: true }, P);
+  const done = wa.slice(n).find((m) => m.message.includes('pindah kamar Anda sudah tercatat'));
+  ok(x.data.status === 'done' && done && done.message.includes(`Kamar ${dest2.number}`) && done.message.includes('/bulan'), 'eksekusi → WA berisi kamar baru & sewa baru', done?.message);
+  const back = free.find((y) => ![dest.number, dest2.number].includes(y.number));
+  const m = wa.length;
+  x = await call('POST', `/residents/${mover.id}/transfer`, { toRoom: back.number, moveDate: today, notify: false }, P);
+  ok(x.data.status === 'done' && !wa.slice(m).some((w) => w.message.includes('pindah kamar')), 'notify=false → tanpa WA');
+}
+
 console.log('— Google Calendar');
 r = await call('GET', '/gcal/auth-url', null, P);
 ok(r.status === 200 && r.data.url.includes('access_type=offline') && r.data.url.includes('calendar.events'), 'auth URL (offline, calendar.events scope)');

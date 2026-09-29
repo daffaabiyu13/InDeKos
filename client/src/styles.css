@@ -647,6 +647,29 @@ button.fac:hover { border-color: var(--jade); color: var(--jade-d); }
 .room-hist-row:last-child { border-bottom: none; }
 @media (max-width: 900px) { .rs-layout { grid-template-columns: 1fr; } }
 @media (pointer: coarse) { .stepper .step-val { height: 44px; } .seg label { min-height: 44px; } }
+/* ── Pindah kamar ── */
+.tf-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--bdr); border-radius: 12px; background: var(--surf2); margin-bottom: 12px; }
+.tf-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tf-head strong { font-size: 15px; }
+.tf-head.small { padding: 10px 12px; margin-bottom: 0; }
+.tf-head.small strong { font-size: 14px; }
+.tf-arrow { font-size: 20px; color: var(--jade-d); font-weight: 800; flex-shrink: 0; }
+.tf-diff { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 10px; }
+.tf-diff.up { background: var(--warn-bg); color: var(--warn); }
+.tf-diff.down { background: var(--ok-bg); color: var(--ok); }
+.tf-plan { border: 1px solid var(--bdr); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+.tf-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--bdr); font-size: 12.5px; }
+.tf-row:last-child { border-bottom: none; }
+.tf-row span { color: var(--t2); }
+.tf-row strong { text-align: right; }
+.room-picks { display: grid; gap: 10px; }
+.room-pick-group { border: 1px solid var(--bdr); border-radius: 12px; padding: 10px 12px; }
+.room-pick-type { font-size: 13px; margin-bottom: 8px; }
+.room-pick-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.room-pick { display: flex; flex-direction: column; align-items: center; min-width: 64px; min-height: 52px; justify-content: center; padding: 6px 10px; border: 1.5px solid var(--bdr); border-radius: 10px; background: var(--surf); cursor: pointer; font-family: inherit; color: var(--t1); }
+.room-pick span { font-size: 11px; color: var(--t2); }
+.room-pick.on { border-color: var(--jade); background: var(--jade-bg); color: var(--jade-d); box-shadow: 0 0 0 2px var(--jade-bg); }
+@media (hover: hover) { .room-pick:hover { border-color: var(--jade); } }
 .stay-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .stay-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .stay-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--pebble-bg); color: var(--pebble-d); }

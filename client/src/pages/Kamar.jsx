@@ -67,7 +67,7 @@ export default function Kamar({ version, onChange }) {
                     <button key={r.number} className={`rc ${STATUS[r.status].cls}${selected === r.number ? ' sel' : ''}`} onClick={() => { setSelected(r.number); revealOnSmall('room-detail'); }}
                       title={`Kamar ${r.number} · ${STATUS[r.status].label}`}>
                       <div className="rc-n">{r.number}</div>
-                      <div>{STATUS[r.status].label}</div>
+                      <div>{r.reserved ? 'Dipesan' : STATUS[r.status].label}</div>
                       <div className="rc-t">{r.typeName || '—'}</div>
                     </button>
                   ))}
@@ -139,6 +139,7 @@ function RoomDetail({ room, types, reload }) {
           Kamar {room.number} — {STATUS[room.status].label}
         </span>
         <span className="tm">Lantai {room.floor}</span>
+        {room.reserved && <span className="badge b-pebble">Dipesan: {room.reserved.name} · pindah {fmtDate(room.reserved.moveDate)}</span>}
       </div>
 
       <div style={{ fontSize: 13, display: 'grid', gap: 8, marginBottom: 14 }}>

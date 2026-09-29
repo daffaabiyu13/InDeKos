@@ -59,6 +59,7 @@ bila diisi email Google (khusus login Google).
 | `/bayar`              | Cek semua tagihan terbuka (nama + nomor kamar) |
 | `/invoice/:id`        | Invoice (link dikirim via WA): QRIS dinamis, "Saya sudah bayar", cetak/PDF |
 | `/keluar`             | Form keluar: tanggal keluar, alasan, rating, rekening pengembalian deposit |
+| `/pindah`             | Ajukan pindah kamar: pilih kamar kosong (dikelompokkan per tipe + selisih harga) atau tipe yang diinginkan, tanggal pindah, alasan |
 
 ## Konfigurasi (env server)
 
@@ -167,6 +168,26 @@ dihapus) dengan pengingat H-3. Kalender internal ada di **Pembayaran → Kalende
   ke penghuni. Penghuni dengan harga khusus tidak ikut berubah harganya. Setiap
   perubahan tercatat di **riwayat tipe** (detail kamar di menu Kamar).
 
+## Pindah kamar
+
+Penghuni mengajukan lewat **`/pindah`** (nama + kamar sekarang → pilih kamar tujuan).
+Pengajuan masuk ke menu **Pindah Kamar** (badge + peringatan di Dashboard). Admin juga
+bisa memindahkan langsung dari **detail penghuni → 🔁 Pindah Kamar**.
+
+Saat memproses, pratinjau menampilkan sewa lama → baru, **selisih pro-rata** periode
+berjalan, dan invoice mendatang yang ikut disesuaikan. Setelah disetujui:
+
+- **Tanggal pindah hari ini** → langsung dieksekusi.
+- **Tanggal mendatang** → kamar tujuan **dipesan** (tampil "Dipesan" di menu Kamar, tidak
+  bisa diisi penghuni lain / dihapus), lalu dieksekusi otomatis oleh scheduler pada tanggalnya.
+
+Eksekusi otomatis mengubah semuanya sekaligus: kamar penghuni, harga sewa (mengikuti tipe
+kamar baru; harga khusus bisa dipertahankan), invoice sewa mendatang yang belum dibayar
+(kamar & harga), **selisih pro-rata** (lebih mahal → invoice tambahan jatuh tempo di tanggal
+pindah; lebih murah → invoice berjalan yang belum dibayar dikurangi), kamar lama kembali
+kosong, dan penghuni diberi tahu via WhatsApp. Pengajuan bisa ditolak / dibatalkan
+(kamar pesanan dilepas) dan semuanya tercatat di tab **Riwayat**.
+
 ## Rencana lama tinggal
 
 Calon penghuni mengisi **rencana lama tinggal** di formulir `/form` (pilihan cepat
@@ -198,6 +219,7 @@ Setiap menu punya panel **AI Insight** di bagian atas dan tombol **Tanya AI**
 | Pengeluaran | perbandingan bulan lalu, lonjakan per kategori, kemungkinan data ganda |
 | Pendaftaran | skor kelengkapan pendaftar (KTP, selfie, verifikasi wajah, kontak darurat) + saran kamar |
 | Pengajuan Keluar / Mantan | tunggakan sebelum keluar, alasan keluar, rating, kandidat testimoni |
+| Pindah Kamar | pengajuan siap disetujui / kamar tujuan sudah terisi / masih menunggak, jadwal pindah, dampak pemasukan, kamar yang akan kosong, tipe paling diminati |
 | Pelanggaran | kategori terbanyak, pelanggar berulang → saran naik SP |
 | Pengaturan / Akun | audit konfigurasi (WA, QRIS, URL publik), password bawaan |
 

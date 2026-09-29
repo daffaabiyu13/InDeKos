@@ -33,7 +33,7 @@ export default function Penghuni({ version }) {
         {chips.map((c) => (
           <button key={c.f} className={`chip${filter === c.f ? ' on' : ''}`} onClick={() => setFilter(c.f)}>{c.label}</button>
         ))}
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--t2)' }}>Link untuk penghuni: <code>/bayar</code> · <code>/keluar</code></div>
+        <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--t2)' }}>Link untuk penghuni: <code>/bayar</code> · <code>/pindah</code> · <code>/keluar</code></div>
       </div>
 
       <div className="card">

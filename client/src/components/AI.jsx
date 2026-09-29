@@ -15,12 +15,12 @@ import { PHONE, useMediaQuery, useScrollLock } from '../responsive.js';
 
 const TITLES = {
   dashboard: 'Dashboard', penghuni: 'Penghuni', resident: 'Detail Penghuni', kamar: 'Kamar', pembayaran: 'Pembayaran',
-  keuangan: 'Keuangan', pengeluaran: 'Pengeluaran', pendaftaran: 'Pendaftaran', keluar: 'Pengajuan Keluar',
+  keuangan: 'Keuangan', pengeluaran: 'Pengeluaran', pendaftaran: 'Pendaftaran', keluar: 'Pengajuan Keluar', pindah: 'Pindah Kamar',
   pelanggaran: 'Pelanggaran', mantan: 'Mantan Penghuni', pengaturan: 'Pengaturan', akun: 'Akun', ai: 'AI Analisa',
 };
 const ROUTES = {
   '/': 'dashboard', '/penghuni': 'penghuni', '/kamar': 'kamar', '/pembayaran': 'pembayaran', '/keuangan': 'keuangan',
-  '/pengeluaran': 'pengeluaran', '/pendaftaran': 'pendaftaran', '/pengajuan-keluar': 'keluar', '/pelanggaran': 'pelanggaran',
+  '/pengeluaran': 'pengeluaran', '/pendaftaran': 'pendaftaran', '/pengajuan-keluar': 'keluar', '/pindah-kamar': 'pindah', '/pelanggaran': 'pelanggaran',
   '/mantan': 'mantan', '/pengaturan': 'pengaturan', '/akun': 'akun', '/ai': 'ai',
 };
 

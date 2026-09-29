@@ -213,6 +213,17 @@ db.exec(`
     createdAt TEXT, processedAt TEXT DEFAULT ''
   );
 
+  CREATE TABLE IF NOT EXISTS room_transfers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    residentId INTEGER, name TEXT NOT NULL, wa TEXT DEFAULT '',
+    fromRoom TEXT NOT NULL, toRoom TEXT DEFAULT '', toTypeId INTEGER, toTypeName TEXT DEFAULT '',
+    moveDate TEXT NOT NULL, reason TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending', -- pending | approved (dijadwalkan) | done | rejected | cancelled
+    source TEXT DEFAULT 'penghuni', keepCustomRent INTEGER DEFAULT 0, prorate INTEGER DEFAULT 1, notify INTEGER DEFAULT 1,
+    adminNote TEXT DEFAULT '', processedBy TEXT DEFAULT '', result TEXT DEFAULT '',
+    createdAt TEXT, processedAt TEXT DEFAULT '', executedAt TEXT DEFAULT ''
+  );
+
   CREATE TABLE IF NOT EXISTS room_type_changes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     roomNumber TEXT NOT NULL,

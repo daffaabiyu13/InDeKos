@@ -63,6 +63,8 @@ export const api = {
   publicInvoice: (id) => get(`/public/invoice/${encodeURIComponent(id)}`),
   confirmInvoice: (id, d) => post(`/public/invoice/${encodeURIComponent(id)}/confirm`, d),
   submitExit: (d) => post('/public/exit-requests', d),
+  transferLookup: (name, room) => get(`/public/transfer?${qs({ name, room })}`),
+  submitTransfer: (d) => post('/public/transfer', d),
 
   // Settings
   settings: () => get('/settings'),
@@ -100,6 +102,13 @@ export const api = {
   applications: (status = 'pending') => get(`/applications?${qs({ status })}`),
   approveApplication: (id, d) => post(`/applications/${id}/approve`, d),
   rejectApplication: (id, reason) => post(`/applications/${id}/reject`, { reason }),
+  transfers: (status) => get(`/transfers?${qs({ status })}`),
+  transferRooms: (residentId) => get(`/transfers/rooms?${qs({ residentId })}`),
+  transferPreview: (id, d) => post(`/transfers/${id}/preview`, d),
+  approveTransfer: (id, d) => post(`/transfers/${id}/approve`, d),
+  rejectTransfer: (id, reason) => post(`/transfers/${id}/reject`, { reason }),
+  residentTransferPreview: (id, d) => post(`/residents/${id}/transfer/preview`, d),
+  residentTransfer: (id, d) => post(`/residents/${id}/transfer`, d),
   exitRequests: (status) => get(`/exit-requests?${qs({ status })}`),
   approveExit: (id, d) => post(`/exit-requests/${id}/approve`, d),
   rejectExit: (id, adminNote) => post(`/exit-requests/${id}/reject`, { adminNote }),

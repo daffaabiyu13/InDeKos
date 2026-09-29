@@ -27,6 +27,7 @@ export default function Dashboard({ version }) {
   const alerts = [
     stats.pendingConfirm && { t: `${stats.pendingConfirm} pembayaran menunggu verifikasi`, to: '/pembayaran' },
     stats.pendingApplications && { t: `${stats.pendingApplications} pendaftaran baru`, to: '/pendaftaran' },
+    stats.pendingTransfers && { t: `${stats.pendingTransfers} pengajuan pindah kamar`, to: '/pindah-kamar' },
     stats.pendingExits && { t: `${stats.pendingExits} pengajuan keluar`, to: '/pengajuan-keluar' },
   ].filter(Boolean);
 

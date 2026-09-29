@@ -11,6 +11,7 @@ import { getSettings } from './settings.js';
 import * as repo from './repo.js';
 import * as billing from './billing.js';
 import { gatewayReady } from './notify.js';
+import { listTransfers } from './transfers.js';
 import { isValidQris } from './qris.js';
 import {
   todayISO, addDays, daysBetween, monthsBetween, parseISO, shiftMonth, fmtDate, fmtRp, verifyPassword, fmtStay,
@@ -34,6 +35,7 @@ export const SCOPES = {
   pengeluaran: 'Pengeluaran',
   pendaftaran: 'Pendaftaran',
   keluar: 'Pengajuan Keluar',
+  pindah: 'Pindah Kamar',
   pelanggaran: 'Pelanggaran',
   mantan: 'Mantan Penghuni',
   pengaturan: 'Pengaturan',
@@ -91,6 +93,7 @@ export function snapshot(today = todayISO()) {
     LEFT JOIN violation_categories c ON c.id = v.categoryId ORDER BY v.date DESC`).all();
   const exits = db.prepare("SELECT * FROM exit_requests WHERE status = 'pending' ORDER BY exitDate").all();
   const applications = repo.listApplications('pending');
+  const transfers = listTransfers();
   const mantan = db.prepare('SELECT * FROM mantan ORDER BY keluar DESC').all();
   const expenses = db.prepare('SELECT id, date, description, cat, amount, source, merchant FROM expenses ORDER BY date DESC').all();
   const promos = db.prepare('SELECT * FROM promos').all();
@@ -112,7 +115,7 @@ export function snapshot(today = todayISO()) {
   }));
 
   return {
-    today, s, rooms, residents: residentsX, stats, violations, exits, applications, mantan, expenses, promos, types,
+    today, s, rooms, residents: residentsX, stats, violations, exits, transfers, applications, mantan, expenses, promos, types,
     openInvoices, months, incomeBy, expenseBy,
     thisMonth: months[months.length - 1],
     prevMonth: months[months.length - 2],
@@ -214,6 +217,8 @@ const builders = {
     if (waiting.length) tasks.push(`**${waiting.length}** pembayaran menunggu konfirmasi`);
     if (S.applications.length) tasks.push(`**${S.applications.length}** pendaftar baru`);
     if (S.exits.length) tasks.push(`**${S.exits.length}** pengajuan keluar`);
+    const tfPending = S.transfers.filter((t) => t.status === 'pending').length;
+    if (tfPending) tasks.push(`**${tfPending}** pengajuan pindah kamar`);
     if (overdue.length) tasks.push(`**${overdue.length}** tagihan terlambat`);
     out.push(tasks.length
       ? I('warn', '🗂️', 'Prioritas hari ini', tasks.join(' · '), waiting.length ? '/pembayaran' : S.applications.length ? '/pendaftaran' : '/pembayaran')
@@ -380,6 +385,47 @@ const builders = {
     return out;
   },
 
+  pindah(S) {
+    const active = S.transfers.filter((t) => t.stillActive);
+    const pending = active.filter((t) => t.status === 'pending');
+    const sched = active.filter((t) => t.status === 'approved').sort((a, b) => a.moveDate.localeCompare(b.moveDate));
+    const out = [];
+    const target = (t) => (t.toRoom ? `kamar ${t.toRoom}` : `tipe ${t.toTypeName}`);
+    const diffOf = (t) => (t.toPrice != null && !t.customRent ? t.toPrice - t.fromPrice : 0);
+    const diffTxt = (d) => (d ? `${d > 0 ? '+' : '−'}${fmtRp(Math.abs(d))}/bulan` : 'harga sama');
+    if (!pending.length && !sched.length) out.push(I('ok', '🔁', 'Tidak ada pengajuan pindah kamar', 'Penghuni bisa mengajukan lewat halaman /pindah; pengajuan baru muncul di sini.'));
+    for (const t of pending.slice(0, 4)) {
+      const r = S.residents.find((x) => x.id === t.residentId);
+      const room = t.toRoom ? S.rooms.find((x) => x.number === t.toRoom) : null;
+      const taken = room && (room.status !== 'av' || (room.reserved && room.reserved.residentId !== t.residentId));
+      const notes = [];
+      if (taken) notes.push(`Kamar ${t.toRoom} **sudah tidak tersedia** — pilihkan kamar lain saat memproses.`);
+      if (!t.toRoom) notes.push(`Penghuni meminta tipe ${t.toTypeName}; pilihkan nomor kamarnya saat memproses.`);
+      if (r?.outstanding) notes.push(`Masih menunggak **${fmtRp(r.outstanding)}** — sebaiknya dilunasi dulu.`);
+      if (t.moveDate < S.today) notes.push(`Tanggal yang diminta (${fmtDate(t.moveDate)}) sudah lewat — tentukan tanggal baru.`);
+      out.push(I(taken || r?.outstanding ? 'warn' : 'info', '🔁', `${t.name}: ${t.fromRoom} → ${target(t)}`,
+        `${fmtDate(t.moveDate)} · ${diffTxt(diffOf(t))}${t.reason ? ` · alasan: ${t.reason}` : ''}.${notes.length ? `\n${notes.join(' ')}` : ' Siap disetujui.'}`, '/pindah-kamar'));
+    }
+    if (sched.length) {
+      out.push(I('info', '📅', `${plural(sched.length, 'pindah kamar')} terjadwal`,
+        `${sched.slice(0, 5).map((t) => `- **${t.name}** ${t.fromRoom} → ${t.toRoom}, ${fmtDate(t.moveDate)}`).join('\n')}\nDijalankan otomatis pada tanggalnya (kamar, harga, invoice, selisih pro-rata).`, '/pindah-kamar'));
+    }
+    const upcoming = [...pending, ...sched];
+    const impact = sum(upcoming, diffOf);
+    if (impact) out.push(I(impact > 0 ? 'ok' : 'warn', '💰', `Dampak pemasukan: ${impact > 0 ? '+' : '−'}${fmtRp(Math.abs(impact))}/bulan`, `Bila semua pengajuan & jadwal pindah dijalankan.${impact < 0 ? ' Pertimbangkan menawarkan kamar lama ke pendaftar baru.' : ''}`));
+    const freed = upcoming.map((t) => t.fromRoom);
+    if (freed.length) out.push(I('info', '🏷️', 'Kamar yang akan kosong', `Kamar ${freed.join(', ')} kosong setelah penghuninya pindah — siapkan untuk dipromosikan.`, '/kamar'));
+    const counted = S.transfers.filter((t) => t.status !== 'rejected');
+    if (counted.length >= 2) {
+      const byType = {};
+      for (const t of counted) byType[t.toTypeNameNow || t.toTypeName] = (byType[t.toTypeNameNow || t.toTypeName] || 0) + 1;
+      const [top, n] = Object.entries(byType).sort((a, b) => b[1] - a[1])[0];
+      const up = counted.filter((t) => diffOf(t) > 0).length; const down = counted.filter((t) => diffOf(t) < 0).length;
+      out.push(I('info', '📊', `Tipe paling diminati: ${top}`, `${n} dari ${counted.length} pengajuan pindah menuju ${top}. Upgrade ${up}×, downgrade ${down}×.`));
+    }
+    return out;
+  },
+
   keluar(S) {
     if (!S.exits.length) return [I('ok', '🚪', 'Tidak ada pengajuan keluar', 'Belum ada penghuni yang mengajukan keluar.')];
     const out = [];
@@ -479,6 +525,7 @@ const SUGGEST = {
   keuangan: ['Bagaimana tren pemasukan?', 'Prediksi pemasukan bulan depan', 'Berapa laba bulan ini?'],
   pengeluaran: ['Kategori pengeluaran terbesar?', 'Ada pengeluaran yang tidak wajar?', 'Bandingkan dengan bulan lalu'],
   pendaftaran: ['Pendaftar mana yang paling siap diterima?', 'Kamar apa yang cocok untuk pendaftar?', 'Data apa yang kurang?'],
+  pindah: ['Pengajuan pindah mana yang siap disetujui?', 'Berapa dampak pindah kamar ke pemasukan?', 'Tipe kamar apa yang paling diminati?'],
   keluar: ['Siapa yang masih punya tunggakan sebelum keluar?', 'Kamar mana yang akan kosong?', 'Apa alasan penghuni keluar?'],
   pelanggaran: ['Siapa yang sering melanggar?', 'Pelanggaran apa yang paling sering?', 'Siapa yang perlu naik SP?'],
   mantan: ['Kenapa penghuni keluar?', 'Rata-rata lama tinggal mantan penghuni?', 'Siapa yang bisa dimintai testimoni?'],
@@ -622,6 +669,7 @@ export function localAnswer(scope, id, message, S = snapshot(), viewer = null) {
   const summary = (sco) => builders[sco](S, id, viewer).map((x) => `**${x.title}**\n${x.text}`).join('\n\n');
   // Di menu Pengajuan Keluar, "tunggakan/kosong/alasan" merujuk ke pengaju keluar.
   if (sc === 'keluar' && /keluar|kosong|tunggak|alasan/.test(q)) return summary('keluar');
+  if (/pindah/.test(q) || (sc === 'pindah' && /siap|setuju|dampak|pemasukan|diminati|tipe|tunggak|kosong|jadwal/.test(q))) return summary('pindah');
   for (const it of INTENTS) {
     if (it.k.test(q)) {
       const out = it.run(S, sc, id, viewer);
@@ -646,6 +694,10 @@ export function contextFor(scope, id, S = snapshot(), viewer = null) {
       menungguKonfirmasi: S.openInvoices.filter((i) => i.status === 'menunggu').length,
       pendaftarMenunggu: S.applications.length,
       pengajuanKeluar: S.exits.map((e) => ({ nama: e.name, kamar: e.room, tanggal: e.exitDate, alasan: e.reason })),
+      pindahKamar: S.transfers.filter((t) => ['pending', 'approved'].includes(t.status)).map((t) => ({
+        nama: t.name, dari: t.fromRoom, ke: t.toRoom || null, tipeTujuan: t.toTypeNameNow || t.toTypeName, tanggal: t.moveDate,
+        status: t.status === 'approved' ? 'dijadwalkan' : 'menunggu', alasan: t.reason, sewaLama: t.fromPrice, sewaBaru: t.toPrice,
+      })),
       promoAktif: S.promos.filter((p) => billing.promoIsOpen(p, S.today)).map((p) => ({ nama: p.name, bayar: p.payMonths, gratis: p.freeMonths, sampai: p.endDate })),
     },
     tipeKamar: S.types.map((t) => ({ nama: t.name, harga: t.price, fasilitas: t.facilities, jumlahKamar: t.roomCount })),

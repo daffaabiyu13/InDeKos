@@ -28,6 +28,8 @@ import Pendaftaran from './pages/Pendaftaran.jsx';
 import PengajuanKeluar from './pages/PengajuanKeluar.jsx';
 import FormPendaftaran from './pages/FormPendaftaran.jsx';
 import FormKeluar from './pages/FormKeluar.jsx';
+import FormPindah from './pages/FormPindah.jsx';
+import PindahKamar from './pages/PindahKamar.jsx';
 import Bayar from './pages/Bayar.jsx';
 import InvoicePublic from './pages/InvoicePublic.jsx';
 
@@ -39,6 +41,7 @@ function buildTitles(kosName) {
     '/pembayaran': ['Pembayaran', 'Invoice, kalender penagihan, promo, charge & denda'],
     '/pendaftaran': ['Verifikasi Pendaftaran', 'Calon penghuni menunggu penempatan kamar'],
     '/pengajuan-keluar': ['Pengajuan Keluar', 'Penghuni yang akan keluar'],
+    '/pindah-kamar': ['Pindah Kamar', 'Pengajuan & jadwal pindah kamar penghuni'],
     '/keuangan': ['Keuangan', 'Laporan keuangan terpadu'],
     '/pengeluaran': ['Pengeluaran', 'Input manual atau scan struk'],
     '/pelanggaran': ['Pelanggaran', 'Kategori custom · riwayat disimpan 1 tahun'],
@@ -81,6 +84,7 @@ function Layout({ version, refresh }) {
       pendingConfirm: d.stats.pendingConfirm,
       pendingApplications: d.stats.pendingApplications,
       pendingExits: d.stats.pendingExits,
+      pendingTransfers: d.stats.pendingTransfers,
       arrears: d.stats.arrears,
     })).catch(() => {});
   }, [version, pathname]);
@@ -110,8 +114,8 @@ function Layout({ version, refresh }) {
   const collapsed = !phone && (tablet ? !tabletOpen : desktopCollapsed);
   const titles = buildTitles(kosName);
   const [title, sub] = titles[pathname] || (pathname.startsWith('/penghuni/') ? ['Detail Penghuni', kosName] : ['InDeKos', '']);
-  const menuBadge = (counts.pendingApplications || 0) + (counts.pendingExits || 0);
-  const notify = () => toast(`🔔 ${counts.arrears || 0} penghuni menunggak · ${counts.pendingConfirm || 0} pembayaran menunggu verifikasi · ${counts.pendingApplications || 0} pendaftaran · ${counts.pendingExits || 0} pengajuan keluar`);
+  const menuBadge = (counts.pendingApplications || 0) + (counts.pendingExits || 0) + (counts.pendingTransfers || 0);
+  const notify = () => toast(`🔔 ${counts.arrears || 0} penghuni menunggak · ${counts.pendingConfirm || 0} pembayaran menunggu verifikasi · ${counts.pendingApplications || 0} pendaftaran · ${counts.pendingTransfers || 0} pindah kamar · ${counts.pendingExits || 0} pengajuan keluar`);
 
   return (
     <div className={`app${collapsed ? ' sb-c' : ''}${phone && drawer ? ' m-open' : ''}${!phone && tablet && tabletOpen ? ' t-open' : ''}`}>
@@ -131,7 +135,7 @@ function Layout({ version, refresh }) {
           <div className="tb-r">
             <button className="notif-btn" title="Notifikasi" aria-label="Notifikasi" onClick={notify}>
               <Icons.bell />
-              {(counts.pendingConfirm || counts.pendingApplications || counts.pendingExits) ? <div className="ndot" /> : null}
+              {(counts.pendingConfirm || counts.pendingApplications || counts.pendingExits || counts.pendingTransfers) ? <div className="ndot" /> : null}
             </button>
             {phone
               ? <button className="tb-icon tb-add" onClick={() => setModalOpen(true)} aria-label="Tambah penghuni"><Icons.plus /></button>
@@ -188,6 +192,7 @@ function ProtectedApp() {
         <Route path="pembayaran" element={<Pembayaran {...p} />} />
         <Route path="pendaftaran" element={<Pendaftaran {...p} />} />
         <Route path="pengajuan-keluar" element={<PengajuanKeluar {...p} />} />
+        <Route path="pindah-kamar" element={<PindahKamar {...p} />} />
         <Route path="keuangan" element={<Keuangan {...p} />} />
         <Route path="pengeluaran" element={<Pengeluaran {...p} />} />
         <Route path="pelanggaran" element={<Pelanggaran {...p} />} />
@@ -213,6 +218,7 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/form" element={<FormPendaftaran />} />
               <Route path="/keluar" element={<FormKeluar />} />
+              <Route path="/pindah" element={<FormPindah />} />
               <Route path="/bayar" element={<Bayar />} />
               <Route path="/invoice/:publicId" element={<InvoicePublic />} />
               {/* Panel pengelola */}

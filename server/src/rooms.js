@@ -89,7 +89,11 @@ export function planLayout(body, { apply = false } = {}) {
   const existing = db.prepare('SELECT number, floor FROM rooms').all();
   const has = new Set(existing.map((r) => r.number));
   const want = new Set(target.map((t) => t.number));
-  const occupied = new Set(db.prepare('SELECT room FROM residents').all().map((r) => r.room));
+  // Kamar berpenghuni atau sudah dipesan untuk pindah kamar tidak boleh dihapus.
+  const occupied = new Set([
+    ...db.prepare('SELECT room FROM residents').all().map((r) => r.room),
+    ...db.prepare("SELECT toRoom FROM room_transfers WHERE status = 'approved'").all().map((r) => r.toRoom),
+  ]);
   const add = target.filter((t) => !has.has(t.number));
   const extra = existing.filter((r) => !want.has(r.number)).map((r) => r.number);
   const remove = layout.removeExtra ? extra.filter((n) => !occupied.has(n)) : [];

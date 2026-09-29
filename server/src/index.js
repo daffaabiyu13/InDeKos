@@ -17,6 +17,7 @@ import { authRouter, requireAuth, requireRole, allowQueryToken, signToken, verif
 import * as billing from './billing.js';
 import * as repo from './repo.js';
 import * as rooms from './rooms.js';
+import * as transfers from './transfers.js';
 import * as notify from './notify.js';
 import { invoicePdf, pdfFileName } from './invoicePdf.js';
 import * as gcal from './gcal.js';
@@ -142,6 +143,14 @@ app.post('/api/public/invoice/:publicId/confirm', h((req, res) => {
   if (!inv) throw bad('Invoice tidak ditemukan atau sudah diproses.', 404);
   kickJobs();
   res.json({ ok: true });
+}));
+
+// Pindah kamar (penghuni): cek identitas → daftar kamar kosong → ajukan.
+app.get('/api/public/transfer', h((req, res) => res.json(transfers.lookup(findResident(req.query.name, req.query.room)))));
+app.post('/api/public/transfer', h((req, res) => {
+  const b = req.body || {};
+  const t = transfers.request(findResident(b.name, b.room), b);
+  res.status(201).json({ ok: true, id: t.id, toRoom: t.toRoom, toTypeName: t.toTypeName, moveDate: t.moveDate });
 }));
 
 // Formulir keluar penghuni.
@@ -304,6 +313,7 @@ app.put('/api/rooms/:number', h(async (req, res) => {
 }));
 app.delete('/api/rooms/:number', pemilik, h((req, res) => {
   if (db.prepare('SELECT 1 FROM residents WHERE room = ?').get(req.params.number)) throw bad('Kamar masih berpenghuni.', 409);
+  if (db.prepare("SELECT 1 FROM room_transfers WHERE toRoom = ? AND status = 'approved'").get(req.params.number)) throw bad('Kamar sudah dipesan untuk pindah kamar.', 409);
   db.prepare('DELETE FROM rooms WHERE number = ?').run(req.params.number);
   res.json({ ok: true });
 }));
@@ -368,6 +378,23 @@ app.post('/api/applications/:id/reject', h((req, res) => {
 }));
 
 // ── Exit requests ──
+// ── Pindah kamar (admin) ──
+app.get('/api/transfers', h((req, res) => res.json(transfers.listTransfers(req.query.status))));
+app.get('/api/transfers/rooms', h((req, res) => res.json(transfers.availableRooms(req.query.residentId ? Number(req.query.residentId) : null))));
+app.post('/api/transfers/:id/preview', h((req, res) => res.json(transfers.preview(req.params.id, req.body || {}))));
+app.post('/api/transfers/:id/approve', h(async (req, res) => {
+  const r = await transfers.approve(req.params.id, req.body || {}, req.user);
+  kickJobs();
+  res.json(r);
+}));
+app.post('/api/transfers/:id/reject', h(async (req, res) => res.json(await transfers.reject(req.params.id, req.body?.reason))));
+app.post('/api/residents/:id/transfer/preview', h((req, res) => res.json(transfers.previewDirect(req.params.id, req.body || {}))));
+app.post('/api/residents/:id/transfer', h(async (req, res) => {
+  const r = await transfers.direct(req.params.id, req.body || {}, req.user);
+  kickJobs();
+  res.json(r);
+}));
+
 app.get('/api/exit-requests', h((req, res) => res.json(repo.listExitRequests(req.query.status))));
 app.post('/api/exit-requests/:id/approve', h((req, res) => {
   const result = repo.approveExit(req.params.id, { exitDate: req.body?.exitDate, adminNote: req.body?.adminNote });
@@ -653,14 +680,15 @@ if (fs.existsSync(distDir)) {
 // kirim invoice/reminder WhatsApp, sinkron Google Calendar.
 async function runJobs() {
   try {
+    const moved = await transfers.runDue(); // pindah kamar terjadwal dulu, agar invoice baru ikut kamar baru
     const created = billing.generateAll();
     const purged = repo.purgeOldViolations();
     const sent = await notify.runAutoSend();
     const reminded = await notify.runReminders();
     const receipts = await notify.runReceipts();
     const synced = await gcal.syncInvoices();
-    if (created || purged || sent.sent || reminded.sent || receipts.sent || synced.created) {
-      console.log(`[jobs] invoice baru ${created} · pelanggaran dihapus ${purged} · WA invoice ${sent.sent || 0} · reminder ${reminded.sent || 0} · bukti lunas ${receipts.sent || 0} · gcal +${synced.created || 0}`);
+    if (moved.done || created || purged || sent.sent || reminded.sent || receipts.sent || synced.created) {
+      console.log(`[jobs] pindah kamar ${moved.done} · invoice baru ${created} · pelanggaran dihapus ${purged} · WA invoice ${sent.sent || 0} · reminder ${reminded.sent || 0} · bukti lunas ${receipts.sent || 0} · gcal +${synced.created || 0}`);
     }
   } catch (e) {
     console.error('[jobs]', e.message);

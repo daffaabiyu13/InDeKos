@@ -132,7 +132,7 @@ export default function RoomSettings() {
               {plan && !changes && !plan.blocked.length && <div className="rs-ok">✅ Susunan sudah sesuai — tidak ada perubahan.</div>}
               {plan && plan.add.length > 0 && <div className="rs-line add"><strong>+{plan.add.length} kamar baru</strong><span>{list(plan.add.map((a) => `${a.number} (lt ${a.floor})`))}</span></div>}
               {plan && plan.remove.length > 0 && <div className="rs-line del"><strong>−{plan.remove.length} kamar dihapus</strong><span>{list(plan.remove)}</span></div>}
-              {plan && plan.blocked.length > 0 && <div className="rs-line warn"><strong>⚠ Tetap dipertahankan (berpenghuni)</strong><span>{list(plan.blocked)} — pindahkan/keluarkan penghuni dulu bila ingin dihapus.</span></div>}
+              {plan && plan.blocked.length > 0 && <div className="rs-line warn"><strong>⚠ Tetap dipertahankan (berpenghuni / dipesan)</strong><span>{list(plan.blocked)} — pindahkan/keluarkan penghuni dulu bila ingin dihapus.</span></div>}
               {plan && plan.kept.length > 0 && <div className="rs-line"><strong>Kamar lain tetap ada</strong><span>{list(plan.kept)}</span></div>}
               {plan && <div className="rs-total">Total setelah diterapkan: <strong>{plan.resultTotal} kamar</strong></div>}
               <button className="btn btn-p" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }} onClick={applyLayout} disabled={busy || !changes}>

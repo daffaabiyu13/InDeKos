@@ -12,6 +12,7 @@ import { useAuth } from '../components/Auth.jsx';
 import Modal from '../components/Modal.jsx';
 import FaceCheck from '../components/FaceCheck.jsx';
 import StayInput, { StayPill } from '../components/StayInput.jsx';
+import TransferModal from '../components/TransferModal.jsx';
 
 const TABS = [
   ['tagihan', 'Tagihan'],
@@ -60,6 +61,7 @@ export default function ResidentDetail({ version, onChange }) {
             <button className="btn btn-g btn-sm" onClick={() => openWhatsApp(r.wa, `Halo ${r.name}, `)}>WhatsApp</button>
             <button className="btn btn-g btn-sm" onClick={() => setModal('promo')}>🎁 Terapkan Promo</button>
             <button className="btn btn-g btn-sm" onClick={() => setTab('charge')}>+ Charge / Denda</button>
+            <button className="btn btn-g btn-sm" onClick={() => setModal('transfer')}>🔁 Pindah Kamar</button>
             <button className="btn btn-d btn-sm" onClick={() => setModal('checkout')}>Proses Keluar</button>
           </div>
         </div>
@@ -86,6 +88,7 @@ export default function ResidentDetail({ version, onChange }) {
 
       {modal === 'pay' && payInv && <PayModal inv={payInv} onClose={() => setModal(null)} onDone={reload} />}
       {modal === 'promo' && <PromoModal r={r} onClose={() => setModal(null)} onDone={reload} />}
+      {modal === 'transfer' && <TransferModal resident={r} onClose={() => setModal(null)} onDone={() => { reload(); onChange?.(); }} />}
       {modal === 'checkout' && <CheckoutModal r={r} onClose={() => setModal(null)} onDone={() => { onChange?.(); toast(`✅ ${r.name} dipindahkan ke arsip mantan penghuni.`); nav('/mantan'); }} />}
     </>
   );
