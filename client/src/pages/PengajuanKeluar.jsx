@@ -5,6 +5,7 @@ import { useFetch } from '../useFetch.js';
 import { fmtDate, fmtRp, stars, timeAgo, openWhatsApp } from '../helpers.js';
 import { useToast } from '../components/Toast.jsx';
 import Modal from '../components/Modal.jsx';
+import FormLinks from '../components/FormLinks.jsx';
 
 export default function PengajuanKeluar({ version, onChange }) {
   const [ver, setVer] = useState(0);
@@ -22,7 +23,7 @@ export default function PengajuanKeluar({ version, onChange }) {
           <button key={k} className={`chip${status === k ? ' on' : ''}`} onClick={() => setStatus(k)}>{l}</button>
         ))}
         <div style={{ marginLeft: 'auto' }}>
-          <button className="btn btn-g btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/keluar`); toast('🔗 Link form keluar disalin.'); }}>Salin Link Form Keluar</button>
+          <FormLinks path="/keluar" name="form keluar" openLabel="Buka Form Keluar" />
         </div>
       </div>
 

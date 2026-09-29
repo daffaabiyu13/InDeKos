@@ -8,6 +8,7 @@ import { useConfirm } from '../components/Confirm.jsx';
 import Modal from '../components/Modal.jsx';
 import FaceCheck, { FaceBadge } from '../components/FaceCheck.jsx';
 import StayInput from '../components/StayInput.jsx';
+import FormLinks from '../components/FormLinks.jsx';
 
 export default function Pendaftaran({ version, onChange }) {
   const [ver, setVer] = useState(0);
@@ -23,15 +24,13 @@ export default function Pendaftaran({ version, onChange }) {
   }
 
   if (loading || !apps) return <div className="loading">Memuat pendaftaran…</div>;
-  const formUrl = `${window.location.origin}/form`;
 
   return (
     <>
       <div className="fr">
         <span className="chip on">Menunggu Verifikasi ({apps.length})</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 7 }}>
-          <button className="btn btn-g btn-sm" onClick={() => { navigator.clipboard?.writeText(formUrl); toast('🔗 Link form pendaftaran disalin.'); }}>Salin Link Form</button>
-          <button className="btn btn-p btn-sm" onClick={() => window.open('/form', '_blank')}>Buka Form Pendaftaran</button>
+        <div style={{ marginLeft: 'auto' }}>
+          <FormLinks path="/form" name="form pendaftaran" openLabel="Buka Form Pendaftaran" />
         </div>
       </div>
 

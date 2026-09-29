@@ -4,6 +4,14 @@ import { api } from '../api.js';
 import { avatarColor, initials, openWhatsApp, fmtDate, fmtRp, PAY_STATUS } from '../helpers.js';
 import { Icons } from '../components/icons.jsx';
 import { StayPill } from '../components/StayInput.jsx';
+import Modal from '../components/Modal.jsx';
+import FormLinks from '../components/FormLinks.jsx';
+
+const FORMS = [
+  { path: '/bayar', name: 'halaman bayar', title: 'Bayar Sewa', desc: 'Cek & bayar semua tagihan (QRIS / transfer).', open: 'Buka' },
+  { path: '/pindah', name: 'form pindah kamar', title: 'Pindah Kamar', desc: 'Ajukan pindah ke kamar lain yang kosong.', open: 'Buka' },
+  { path: '/keluar', name: 'form keluar', title: 'Ajukan Keluar', desc: 'Tanggal keluar, alasan, dan rekening deposit.', open: 'Buka' },
+];
 
 const chips = [
   { f: 'all', label: 'Semua' },
@@ -17,6 +25,7 @@ export default function Penghuni({ version }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
   const [list, setList] = useState(null);
+  const [links, setLinks] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => api.residents(q, filter).then(setList).catch(() => setList([])), 150);
@@ -33,7 +42,7 @@ export default function Penghuni({ version }) {
         {chips.map((c) => (
           <button key={c.f} className={`chip${filter === c.f ? ' on' : ''}`} onClick={() => setFilter(c.f)}>{c.label}</button>
         ))}
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--t2)' }}>Link untuk penghuni: <code>/bayar</code> · <code>/pindah</code> · <code>/keluar</code></div>
+        <button className="btn btn-g btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setLinks(true)}><Icons.link /> Link Form Penghuni</button>
       </div>
 
       <div className="card">
@@ -74,6 +83,19 @@ export default function Penghuni({ version }) {
           </table>
         </div>
       </div>
+      {links && (
+        <Modal title="Link Form untuk Penghuni" onClose={() => setLinks(false)} width={580}>
+          <div className="field-hint" style={{ marginBottom: 12 }}>Salin link lalu kirim ke penghuni (mis. via WhatsApp), atau buka di tab baru untuk melihat tampilannya.</div>
+          <div className="link-list">
+            {FORMS.map((f) => (
+              <div key={f.path} className="link-row">
+                <div><strong>{f.title}</strong><div className="tm">{f.desc}</div></div>
+                <FormLinks path={f.path} name={f.name} openLabel={f.open} />
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

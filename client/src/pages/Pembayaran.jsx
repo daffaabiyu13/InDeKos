@@ -10,6 +10,7 @@ import { Icons } from '../components/icons.jsx';
 import Modal from '../components/Modal.jsx';
 import { InvoiceActions, PayModal } from './ResidentDetail.jsx';
 import { revealOnSmall } from '../responsive.js';
+import FormLinks from '../components/FormLinks.jsx';
 
 const TABS = [['tagihan', 'Tagihan'], ['kalender', 'Kalender Penagihan'], ['promo', 'Promo'], ['charge', 'Charge & Denda'], ['notif', 'Notifikasi WA']];
 
@@ -97,7 +98,7 @@ function InvoicesTab({ version, reload }) {
         <div className="ch">
           <div className="srch"><Icons.search /><input placeholder="Cari nama, kamar, no. invoice…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
           <div style={{ display: 'flex', gap: 7 }}>
-            <button className="btn btn-g btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/bayar`); toast('🔗 Link /bayar disalin.'); }}>Salin Link /bayar</button>
+            <FormLinks path="/bayar" name="halaman bayar" openLabel="Halaman Bayar" />
             <button className="btn btn-g btn-sm" onClick={exportCSV}>Export</button>
             <button className="btn btn-p btn-sm" onClick={generate}>Terbitkan Invoice</button>
           </div>

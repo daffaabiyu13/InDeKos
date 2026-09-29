@@ -6,6 +6,7 @@ import { fmtRp, fmtDate, timeAgo, avatarColor, initials, openWhatsApp } from '..
 import { useToast } from '../components/Toast.jsx';
 import { useConfirm } from '../components/Confirm.jsx';
 import TransferModal from '../components/TransferModal.jsx';
+import FormLinks from '../components/FormLinks.jsx';
 
 const TABS = [
   ['pending', 'Menunggu'],
@@ -36,11 +37,14 @@ export default function PindahKamar({ version, onChange }) {
 
   return (
     <>
+      <div className="page-intro">
+        <div className="field-hint">
+          Penghuni mengajukan lewat form Pindah Kamar. Setelah disetujui, kamar tujuan dipesan dan pada tanggal pindah semuanya diperbarui otomatis: kamar, harga sewa, invoice, dan selisih pro-rata.
+        </div>
+        <FormLinks path="/pindah" name="form pindah kamar" openLabel="Buka Form Pindah" />
+      </div>
       <div className="tabs" role="tablist" style={{ marginBottom: 14 }}>
         {TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={`tab${tab === k ? ' on' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
-      </div>
-      <div className="field-hint" style={{ marginBottom: 12 }}>
-        Penghuni mengajukan lewat <code>/pindah</code>. Setelah disetujui, kamar tujuan dipesan dan pada tanggal pindah semuanya otomatis: kamar, harga sewa, invoice, dan selisih pro-rata.
       </div>
       {loading && <div className="loading">Memuat…</div>}
       {!loading && list.length === 0 && (

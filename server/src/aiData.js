@@ -393,7 +393,7 @@ const builders = {
     const target = (t) => (t.toRoom ? `kamar ${t.toRoom}` : `tipe ${t.toTypeName}`);
     const diffOf = (t) => (t.toPrice != null && !t.customRent ? t.toPrice - t.fromPrice : 0);
     const diffTxt = (d) => (d ? `${d > 0 ? '+' : '−'}${fmtRp(Math.abs(d))}/bulan` : 'harga sama');
-    if (!pending.length && !sched.length) out.push(I('ok', '🔁', 'Tidak ada pengajuan pindah kamar', 'Penghuni bisa mengajukan lewat halaman /pindah; pengajuan baru muncul di sini.'));
+    if (!pending.length && !sched.length) out.push(I('ok', '🔁', 'Tidak ada pengajuan pindah kamar', 'Bagikan form pindah kamar ke penghuni lewat tombol **Salin Link**; pengajuan baru otomatis muncul di sini.'));
     for (const t of pending.slice(0, 4)) {
       const r = S.residents.find((x) => x.id === t.residentId);
       const room = t.toRoom ? S.rooms.find((x) => x.number === t.toRoom) : null;

@@ -53,6 +53,10 @@ bila diisi email Google (khusus login Google).
 
 ### Halaman untuk penghuni (tanpa login)
 
+Di aplikasi admin, link halaman ini dibagikan lewat tombol **Salin Link** dan **Buka** (tab baru) —
+di menu masing-masing (Pembayaran, Pendaftaran, Pindah Kamar, Pengajuan Keluar) atau
+**Penghuni → Link Form Penghuni**. Path mentah tidak ditampilkan di UI.
+
 | URL                   | Fungsi |
 | --------------------- | ------ |
 | `/form`               | Pendaftaran calon penghuni (data diri, **2 kontak darurat**, **foto KTP**, **foto selfie** + verifikasi wajah otomatis) |
