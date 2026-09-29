@@ -81,6 +81,12 @@ export const api = {
   addRoomType: (d) => post('/room-types', d),
   updateRoomType: (id, d) => put(`/room-types/${id}`, d),
   deleteRoomType: (id) => del(`/room-types/${id}`),
+  roomLayout: () => get('/rooms/layout'),
+  roomLayoutPreview: (d) => post('/rooms/layout/preview', d),
+  roomLayoutApply: (d) => post('/rooms/layout/apply', d),
+  changeTypePreview: (d) => post('/rooms/change-type/preview', d),
+  changeType: (d) => post('/rooms/change-type', d),
+  roomHistory: (number) => get(`/rooms/${encodeURIComponent(number)}/history`),
 
   // Residents
   residents: (q = '', filter = 'all') => get(`/residents?${qs({ q, filter })}`),

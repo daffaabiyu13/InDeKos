@@ -16,6 +16,7 @@ import { getSettings, getMaskedSettings, getPublicInfo, updateSettings } from '.
 import { authRouter, requireAuth, requireRole, allowQueryToken, signToken, verifyToken } from './auth.js';
 import * as billing from './billing.js';
 import * as repo from './repo.js';
+import * as rooms from './rooms.js';
 import * as notify from './notify.js';
 import { invoicePdf, pdfFileName } from './invoicePdf.js';
 import * as gcal from './gcal.js';
@@ -259,6 +260,22 @@ app.delete('/api/room-types/:id', pemilik, h((req, res) => {
 
 // ── Rooms ──
 app.get('/api/rooms', h((_req, res) => res.json(repo.listRooms())));
+// Susunan kamar (jumlah, lantai, format nomor) — pratinjau lalu terapkan.
+app.get('/api/rooms/layout', pemilik, h((_req, res) => res.json(rooms.currentLayout())));
+app.post('/api/rooms/layout/preview', pemilik, h((req, res) => res.json(rooms.planLayout(req.body))));
+app.post('/api/rooms/layout/apply', pemilik, h((req, res) => {
+  const r = rooms.planLayout(req.body, { apply: true });
+  kickJobs();
+  res.json(r);
+}));
+// Upgrade/downgrade tipe kamar (satu atau banyak kamar).
+app.post('/api/rooms/change-type/preview', pemilik, h(async (req, res) => res.json(await rooms.changeRoomType(req.body || {}, req.user))));
+app.post('/api/rooms/change-type', pemilik, h(async (req, res) => {
+  const r = await rooms.changeRoomType(req.body || {}, req.user, { apply: true });
+  kickJobs();
+  res.json(r);
+}));
+app.get('/api/rooms/:number/history', h((req, res) => res.json(rooms.roomTypeHistory(req.params.number))));
 app.post('/api/rooms', pemilik, h((req, res) => {
   const number = String(req.body?.number || '').trim();
   if (!/^[A-Za-z0-9-]{1,10}$/.test(number)) throw bad('Nomor kamar tidak valid.');
@@ -267,13 +284,17 @@ app.post('/api/rooms', pemilik, h((req, res) => {
     .run(number, Number(req.body.floor) || 1, req.body.typeId ? Number(req.body.typeId) : null, '');
   res.status(201).json({ ok: true });
 }));
-app.put('/api/rooms/:number', h((req, res) => {
+app.put('/api/rooms/:number', h(async (req, res) => {
   const room = db.prepare('SELECT * FROM rooms WHERE number = ?').get(req.params.number);
   if (!room) throw bad('Kamar tidak ditemukan.', 404);
   const b = req.body || {};
   if ((b.typeId !== undefined || b.floor !== undefined) && req.user.role !== 'pemilik') throw bad('Hanya pemilik yang dapat mengubah tipe/lantai kamar.', 403);
+  // Ganti tipe lewat jalur upgrade/downgrade agar tercatat di riwayat.
+  if (b.typeId && Number(b.typeId) !== room.typeId) {
+    await rooms.changeRoomType({ numbers: [room.number], typeId: b.typeId, effective: 'next', updateInvoices: true }, req.user, { apply: true });
+  }
   db.prepare('UPDATE rooms SET typeId = ?, floor = ?, maintenance = ?, note = ? WHERE id = ?').run(
-    b.typeId !== undefined ? (b.typeId ? Number(b.typeId) : null) : room.typeId,
+    b.typeId !== undefined ? (b.typeId ? Number(b.typeId) : null) : db.prepare('SELECT typeId FROM rooms WHERE id = ?').get(room.id).typeId,
     b.floor !== undefined ? Number(b.floor) || 1 : room.floor,
     b.maintenance !== undefined ? (b.maintenance ? 1 : 0) : room.maintenance,
     b.note !== undefined ? String(b.note) : room.note,

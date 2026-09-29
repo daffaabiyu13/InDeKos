@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast.jsx';
 import { useSettings } from '../components/Settings.jsx';
 import { useConfirm } from '../components/Confirm.jsx';
 import { fmtRp, timeAgo } from '../helpers.js';
+import RoomSettings from '../components/RoomSettings.jsx';
 
 const typeNotes = {
   putri: 'Kos Putri — hanya menerima penghuni perempuan.',
@@ -114,6 +115,8 @@ export default function Pengaturan({ onSaved }) {
           </div>
         </div>
       </div>
+
+      <RoomSettings />
 
       <div className="g2 mb">
         <div className="card" id="wa">

@@ -213,6 +213,16 @@ db.exec(`
     createdAt TEXT, processedAt TEXT DEFAULT ''
   );
 
+  CREATE TABLE IF NOT EXISTS room_type_changes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    roomNumber TEXT NOT NULL,
+    fromTypeId INTEGER, fromName TEXT, fromPrice INTEGER,
+    toTypeId INTEGER, toName TEXT, toPrice INTEGER,
+    direction TEXT, effective TEXT, invoicesUpdated INTEGER DEFAULT 0,
+    residentId INTEGER, residentName TEXT DEFAULT '',
+    note TEXT DEFAULT '', userName TEXT DEFAULT '', createdAt TEXT
+  );
+
   CREATE TABLE IF NOT EXISTS activities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     c TEXT, t TEXT, createdAt TEXT

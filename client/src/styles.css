@@ -615,6 +615,38 @@ button.fac:hover { border-color: var(--jade); color: var(--jade-d); }
 .risk-row { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--bdr); color: inherit; text-decoration: none; }
 .risk-row:last-child { border-bottom: none; }
 .risk-row:hover .badge.b-neu { border-color: var(--jade); }
+/* ── Pengaturan: Kamar & Tipe ── */
+.stepper .step-val { width: 64px; height: 36px; border: none; border-left: 1.5px solid var(--bdr); border-right: 1.5px solid var(--bdr); border-radius: 0; text-align: center; padding: 0 4px; -moz-appearance: textfield; }
+.stepper .step-val::-webkit-inner-spin-button, .stepper .step-val::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.rs-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.rs-example { display: flex; align-items: center; color: var(--t2); background: var(--surf2); font-size: 13px; }
+.rs-preview { background: var(--surf2); border: 1px solid var(--bdr); border-radius: 12px; padding: 14px; min-width: 0; }
+.rs-line { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--surf); border: 1px solid var(--bdr); margin-top: 8px; font-size: 12.5px; overflow-wrap: anywhere; }
+.rs-line span { color: var(--t2); }
+.rs-line.add { border-left: 4px solid var(--ok); }
+.rs-line.del { border-left: 4px solid var(--err); }
+.rs-line.warn { border-left: 4px solid var(--warn); }
+.rs-ok { font-size: 13px; color: var(--ok); font-weight: 600; margin-top: 6px; }
+.rs-total { margin-top: 10px; font-size: 13px; }
+.rs-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.rs-type { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 12px; border: 1.5px solid var(--bdr); border-radius: 12px; background: var(--surf); cursor: pointer; font-family: inherit; color: var(--t1); }
+.rs-type:hover { border-color: var(--jade); }
+.rs-type.add { align-items: center; justify-content: center; color: var(--jade-d); font-weight: 700; border-style: dashed; min-height: 84px; }
+.rs-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.tc-list { border: 1px solid var(--bdr); border-radius: 10px; overflow: hidden; margin-bottom: 4px; }
+.tc-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--bdr); font-size: 12.5px; }
+.tc-row:last-child { border-bottom: none; }
+.tc-room { font-weight: 800; font-size: 14px; min-width: 38px; }
+.tc-types { overflow-wrap: anywhere; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1.5px solid var(--bdr); border-radius: 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: var(--surf); }
+.seg label.on { border-color: var(--jade); background: var(--jade-bg); color: var(--jade-d); }
+.seg input { accent-color: var(--jade); }
+.room-hist { margin-top: 12px; }
+.room-hist-row { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed var(--bdr); font-size: 12.5px; }
+.room-hist-row:last-child { border-bottom: none; }
+@media (max-width: 900px) { .rs-layout { grid-template-columns: 1fr; } }
+@media (pointer: coarse) { .stepper .step-val { height: 44px; } .seg label { min-height: 44px; } }
 .stay-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .stay-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .stay-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--pebble-bg); color: var(--pebble-d); }

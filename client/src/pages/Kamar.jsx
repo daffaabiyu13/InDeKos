@@ -9,6 +9,7 @@ import { useAuth } from '../components/Auth.jsx';
 import Modal from '../components/Modal.jsx';
 import { revealOnSmall } from '../responsive.js';
 import { StayPill } from '../components/StayInput.jsx';
+import { RoomTypeModal, ChangeTypeModal, RoomHistory } from '../components/RoomTypes.jsx';
 
 const STATUS = {
   oc: { label: 'Terisi', cls: 'oc' },
@@ -119,6 +120,8 @@ function RoomDetail({ room, types, reload }) {
   const nav = useNavigate();
   const { isPemilik } = useAuth();
   const [note, setNote] = useState(room.note || '');
+  const [changing, setChanging] = useState(false);
+  const [histVer, setHistVer] = useState(0);
   const res = room.resident;
 
   async function update(body, msg) {
@@ -139,12 +142,10 @@ function RoomDetail({ room, types, reload }) {
       </div>
 
       <div style={{ fontSize: 13, display: 'grid', gap: 8, marginBottom: 14 }}>
-        <Row label="Tipe" value={isPemilik ? (
-          <select className="fi" style={{ width: 'auto', padding: '4px 8px' }} value={room.typeId || ''} onChange={(e) => update({ typeId: e.target.value ? Number(e.target.value) : null }, 'Tipe kamar diperbarui.')}>
-            <option value="">— Tanpa tipe —</option>
-            {types.map((t) => <option key={t.id} value={t.id}>{t.name} · {fmtRp(t.price)}</option>)}
-          </select>
-        ) : room.typeName || '—'} />
+        <Row label="Tipe" value={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <strong>{room.typeName || '—'}</strong>
+          {isPemilik && <button className="btn btn-g btn-sm" onClick={() => setChanging(true)}>Upgrade / Downgrade</button>}
+        </span>} />
         <Row label="Harga Sewa" value={<strong>{room.typePrice ? `${fmtRp(room.typePrice)}/bln` : '—'}</strong>} />
         <Row label="Fasilitas" value={<span style={{ textAlign: 'right' }}>{room.facilities.join(', ') || '—'}</span>} />
       </div>
@@ -180,6 +181,8 @@ function RoomDetail({ room, types, reload }) {
         )}
         {isPemilik && !res && <button className="btn btn-g btn-sm" onClick={remove}>Hapus Kamar</button>}
       </div>
+      <RoomHistory number={room.number} version={histVer} limit={3} />
+      {changing && <ChangeTypeModal numbers={[room.number]} types={types} onClose={() => setChanging(false)} onDone={() => { setHistVer((v) => v + 1); reload(); }} />}
     </>
   );
 }
@@ -190,61 +193,6 @@ function Row({ label, value }) {
       <span style={{ color: 'var(--t2)' }}>{label}</span>
       <span>{value}</span>
     </div>
-  );
-}
-
-function RoomTypeModal({ type, onClose, onDone }) {
-  const toast = useToast();
-  const confirm = useConfirm();
-  const isNew = !type.id;
-  const [f, setF] = useState({ name: type.name || '', price: type.price || '', description: type.description || '', facilities: type.facilities || [] });
-  const [fac, setFac] = useState('');
-  const addFac = () => {
-    const v = fac.trim();
-    if (v && !f.facilities.includes(v)) setF((x) => ({ ...x, facilities: [...x.facilities, v] }));
-    setFac('');
-  };
-  async function save() {
-    try {
-      const body = { ...f, price: Number(String(f.price).replace(/\D/g, '')) };
-      if (isNew) await api.addRoomType(body); else await api.updateRoomType(type.id, body);
-      toast('✅ Tipe kamar disimpan. Harga baru berlaku untuk invoice berikutnya.');
-      onDone();
-      onClose();
-    } catch (e) { toast(`⚠️ ${e.message}`); }
-  }
-  async function remove() {
-    if (!(await confirm({ title: 'Hapus Tipe Kamar', message: `Hapus tipe "${type.name}"?`, confirmText: 'Hapus', danger: true }))) return;
-    try { await api.deleteRoomType(type.id); toast('Tipe dihapus.'); onDone(); onClose(); } catch (e) { toast(`⚠️ ${e.message}`); }
-  }
-  const presets = ['AC', 'Kipas angin', 'Kasur', 'Lemari', 'Meja belajar', 'Kursi', 'Wi-Fi', 'Kamar mandi dalam', 'Kamar mandi luar', 'Water heater', 'TV', 'Kulkas', 'Jendela', 'Parkir motor', 'Dapur bersama', 'Laundry'];
-  return (
-    <Modal title={isNew ? 'Tipe Kamar Baru' : `Ubah Tipe · ${type.name}`} onClose={onClose} width={520} footer={<>
-      {!isNew && <button className="btn btn-g" style={{ marginRight: 'auto' }} onClick={remove}>Hapus</button>}
-      <button className="btn btn-g" onClick={onClose}>Batal</button>
-      <button className="btn btn-p" onClick={save}>Simpan</button>
-    </>}>
-      <div className="g2">
-        <div className="fg"><label className="fl">Nama tipe <span className="req">*</span></label><input className="fi" placeholder="mis. VIP" value={f.name} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} /></div>
-        <div className="fg"><label className="fl">Harga / bulan <span className="req">*</span></label><input className="fi" inputMode="numeric" placeholder="1500000" value={f.price} onChange={(e) => setF((x) => ({ ...x, price: e.target.value }))} />
-          {f.price ? <div className="field-hint">{fmtRp(String(f.price).replace(/\D/g, ''))}</div> : null}</div>
-      </div>
-      <div className="fg"><label className="fl">Deskripsi</label><input className="fi" value={f.description} onChange={(e) => setF((x) => ({ ...x, description: e.target.value }))} /></div>
-      <div className="fg">
-        <label className="fl">Fasilitas</label>
-        <div className="fac-list" style={{ marginBottom: 8 }}>
-          {f.facilities.map((x) => <button type="button" key={x} className="fac fac-on" onClick={() => setF((y) => ({ ...y, facilities: y.facilities.filter((z) => z !== x) }))}>{x} ✕</button>)}
-          {f.facilities.length === 0 && <span className="tm">Belum ada fasilitas</span>}
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input className="fi" placeholder="Tambah fasilitas lain…" value={fac} onChange={(e) => setFac(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addFac(); } }} />
-          <button type="button" className="btn btn-g btn-sm" onClick={addFac}>Tambah</button>
-        </div>
-        <div className="fac-list" style={{ marginTop: 8 }}>
-          {presets.filter((p) => !f.facilities.includes(p)).map((p) => <button type="button" key={p} className="fac" onClick={() => setF((y) => ({ ...y, facilities: [...y.facilities, p] }))}>+ {p}</button>)}
-        </div>
-      </div>
-    </Modal>
   );
 }
 

@@ -154,6 +154,19 @@ dihapus) dengan pengingat H-3. Kalender internal ada di **Pembayaran → Kalende
   pertama kali mengunduh data bahasa dari CDN). Total, tanggal, toko, dan
   kategori diisi otomatis dan tetap bisa diedit sebelum disimpan.
 
+## Kamar & tipe (Pengaturan → Kamar & Tipe)
+
+- **Jumlah & penomoran kamar** — atur total kamar, jumlah lantai, format nomor
+  (berurutan 101, 102… atau per lantai 101…, 201…), prefiks, dan tipe untuk kamar
+  baru. Pratinjau menampilkan kamar yang **ditambah / dihapus** sebelum diterapkan.
+  Kamar berpenghuni **tidak pernah dihapus**; kamar yang sudah ada tidak diubah.
+- **Tipe kamar** — nama, harga, deskripsi, fasilitas (juga bisa dari menu Kamar).
+- **Upgrade / downgrade** satu kamar atau banyak kamar sekaligus: pilih tipe baru,
+  harga berlaku **mulai periode berikutnya** atau **mulai periode berjalan**, opsi
+  menyesuaikan invoice sewa yang sudah terbit & belum dibayar, dan pemberitahuan WA
+  ke penghuni. Penghuni dengan harga khusus tidak ikut berubah harganya. Setiap
+  perubahan tercatat di **riwayat tipe** (detail kamar di menu Kamar).
+
 ## Rencana lama tinggal
 
 Calon penghuni mengisi **rencana lama tinggal** di formulir `/form` (pilihan cepat
@@ -222,6 +235,7 @@ server/src/
   uploads.js   foto (validasi magic byte) qris.js     QRIS statis → dinamis
   aiData.js    insight per menu + jawaban lokal       ai.js  tanya jawab Claude
   invoicePdf.js  PDF invoice/kwitansi (pdfkit, A5, cap LUNAS, QRIS)
+  rooms.js     susunan kamar (jumlah/lantai/nomor) + upgrade/downgrade tipe + riwayat
   googleAuth.js  login dengan Google (akun terdaftar saja, kode sekali pakai + nonce)
 server/test/   api.test.mjs, integration.test.mjs, ai.test.mjs, run.mjs
 client/src/

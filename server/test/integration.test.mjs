@@ -185,6 +185,16 @@ r = await call('POST', `/invoices/${openInv[3].id}/send`, { kind: 'lunas' }, A);
 ok(r.status === 400, 'bukti manual ditolak untuk invoice belum lunas');
 await call('PUT', '/settings', { receiptAutoSend: true }, P);
 
+console.log('— Upgrade kamar: pemberitahuan WA');
+{
+  const types = (await call('GET', '/room-types', null, P)).data;
+  const prem = types.find((t) => t.name.includes('Premium'));
+  const res = (await call('GET', '/residents', null, P)).data.find((x) => x.roomType === 'Standar' && !x.rent && x.wa);
+  const x = await call('POST', '/rooms/change-type', { numbers: [res.room], typeId: prem.id, effective: 'next', notify: true, note: 'AC baru dipasang' }, P);
+  const m = wa.find((w) => w.message.includes(`Kamar ${res.room} kini bertipe`));
+  ok(x.data.notified?.[0]?.ok && m && /upgrade/.test(m.message) && /Rp 1\.700\.000\/bulan/.test(m.message) && /AC baru dipasang/.test(m.message), 'penghuni diberi tahu via WA (tipe baru, harga baru, catatan)', m?.message);
+}
+
 console.log('— Google Calendar');
 r = await call('GET', '/gcal/auth-url', null, P);
 ok(r.status === 200 && r.data.url.includes('access_type=offline') && r.data.url.includes('calendar.events'), 'auth URL (offline, calendar.events scope)');
