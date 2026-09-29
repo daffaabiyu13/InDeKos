@@ -362,4 +362,12 @@ function seedBase() {
 }
 seedBase();
 
+// Migrasi satu kali: penghuni yang sudah ada tanpa rencana tinggal → 6 bulan.
+// Hanya berjalan sekali per database (dicatat di meta); penghuni baru tidak terpengaruh.
+if (!getMeta('stay_default_6')) {
+  const n = db.prepare('UPDATE residents SET stayMonths = 6 WHERE stayMonths IS NULL').run().changes;
+  setMeta('stay_default_6', nowStamp());
+  if (n) console.log(`[db] Rencana tinggal ${n} penghuni lama diisi 6 bulan.`);
+}
+
 export default db;
