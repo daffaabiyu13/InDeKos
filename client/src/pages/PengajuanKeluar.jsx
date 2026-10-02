@@ -6,6 +6,7 @@ import { fmtDate, fmtRp, stars, timeAgo, openWhatsApp } from '../helpers.js';
 import { useToast } from '../components/Toast.jsx';
 import Modal from '../components/Modal.jsx';
 import FormLinks from '../components/FormLinks.jsx';
+import { HandoverCompare } from '../components/Handover.jsx';
 
 export default function PengajuanKeluar({ version, onChange }) {
   const [ver, setVer] = useState(0);
@@ -68,6 +69,7 @@ function ProcessModal({ req, onClose, onDone }) {
   const [exitDate, setExitDate] = useState(req.exitDate);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const { data: photos } = useFetch(() => (req.residentId && req.stillActive ? api.handoverPhotos(req.residentId) : Promise.resolve([])), [req.id]);
   async function approve() {
     setBusy(true);
     try {
@@ -82,7 +84,7 @@ function ProcessModal({ req, onClose, onDone }) {
     try { await api.rejectExit(req.id, note); toast('Pengajuan ditolak.'); onDone(); onClose(); } catch (e) { toast(`⚠️ ${e.message}`); setBusy(false); }
   }
   return (
-    <Modal title={`Proses Pengajuan Keluar · ${req.name}`} onClose={onClose} width={480} footer={<>
+    <Modal title={`Proses Pengajuan Keluar · ${req.name}`} onClose={onClose} width={photos?.length ? 620 : 480} footer={<>
       <button className="btn btn-g" onClick={() => openWhatsApp(req.wa, `Halo ${req.name}, terkait pengajuan keluar Anda dari kamar ${req.room}: `)}>WhatsApp</button>
       <button className="btn btn-d" onClick={reject} disabled={busy}>Tolak</button>
       <button className="btn btn-p" onClick={approve} disabled={busy}>Setujui & Checkout</button>
@@ -94,6 +96,7 @@ function ProcessModal({ req, onClose, onDone }) {
       </div>
       <div className="fg"><label className="fl">Catatan admin</label><textarea className="fi" rows="2" placeholder="mis. Kunci dikembalikan, deposit ditransfer 12 Okt" value={note} onChange={(e) => setNote(e.target.value)} /></div>
       <div className="field-hint">Saat disetujui: penghuni dipindah ke arsip mantan, kamar menjadi kosong, invoice setelah tanggal keluar dibatalkan, charge bulanan dihentikan, dan bila rate harian aktif periode terakhir dihitung pro-rata.</div>
+      <HandoverCompare photos={photos} />
     </Modal>
   );
 }

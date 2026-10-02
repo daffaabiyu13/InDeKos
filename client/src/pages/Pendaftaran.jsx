@@ -9,6 +9,8 @@ import Modal from '../components/Modal.jsx';
 import FaceCheck, { FaceBadge } from '../components/FaceCheck.jsx';
 import StayInput from '../components/StayInput.jsx';
 import FormLinks from '../components/FormLinks.jsx';
+import { MultiPhotoInput } from '../components/MultiPhoto.jsx';
+import { HANDOVER_MAX } from '../components/Handover.jsx';
 
 export default function Pendaftaran({ version, onChange }) {
   const [ver, setVer] = useState(0);
@@ -80,15 +82,19 @@ function VerifyModal({ app, onClose, onDone }) {
   const [room, setRoom] = useState('');
   const [dueDay, setDueDay] = useState(masukDay);
   const [stayMonths, setStayMonths] = useState(app.stayMonths ?? null);
+  const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
-  const available = (rooms || []).filter((r) => r.status === 'av');
+  const available = (rooms || []).filter((r) => r.status === 'av' && !r.reserved);
   const sel = available.find((r) => r.number === room);
 
   async function approve() {
     setBusy(true);
     try {
-      const { resident } = await api.approveApplication(app.id, { room, dueDay: Number(dueDay), stayMonths });
-      toast(`✅ ${app.name} ditempatkan di kamar ${room}. Invoice pertama dibuat.`);
+      const res = await api.approveApplication(app.id, { room, dueDay: Number(dueDay), stayMonths, handoverPhotos: photos });
+      const { resident } = res;
+      toast(res.photoError
+        ? `⚠️ ${app.name} ditempatkan di kamar ${room}, tetapi foto gagal disimpan: ${res.photoError}`
+        : `✅ ${app.name} ditempatkan di kamar ${room}.${res.photos ? ` ${res.photos} foto pengesahan kamar disimpan.` : ''} Invoice pertama dibuat.`);
       onDone();
       onClose();
       nav(`/penghuni/${resident.id}`);
@@ -144,6 +150,10 @@ function VerifyModal({ app, onClose, onDone }) {
       <div style={{ marginTop: 12 }}>
         <StayInput value={stayMonths} masuk={app.masuk} onChange={setStayMonths} hint="Diisi calon penghuni di formulir; boleh disesuaikan." />
       </div>
+
+      <div className="fp-sec">Foto Pengesahan Kamar <span className="tm" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>(opsional)</span></div>
+      <MultiPhotoInput value={photos} onChange={setPhotos} max={HANDOVER_MAX} idPrefix="acc"
+        hint={`Foto kondisi kamar${room ? ` ${room}` : ''} saat diserahkan ke penghuni. Tersimpan di Profil & Dokumen penghuni; bisa ditambah nanti.`} />
     </Modal>
   );
 }

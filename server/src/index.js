@@ -23,6 +23,7 @@ import { invoicePdf, pdfFileName } from './invoicePdf.js';
 import * as gcal from './gcal.js';
 import * as googleAuth from './googleAuth.js';
 import { saveImage, sendImage } from './uploads.js';
+import * as roomDocs from './roomDocs.js';
 import { generateDynamicQris, isValidQris } from './qris.js';
 import * as ai from './ai.js';
 import { insightsFor } from './aiData.js';
@@ -358,17 +359,38 @@ app.post('/api/residents/:id/apply-promo', h((req, res) => {
   }
 }));
 
+// Foto pengesahan kamar (bukti kondisi kamar saat mulai ditempati).
+app.get('/api/residents/:id/handover-photos', h((req, res) => res.json(roomDocs.handoverPhotos(req.params.id))));
+app.post('/api/residents/:id/handover-photos', h((req, res) => {
+  res.status(201).json(roomDocs.addHandoverPhotos(req.params.id, req.body?.photos, { date: req.body?.date, user: req.user }));
+}));
+app.delete('/api/handover-photos/:id', pemilik, h((req, res) => res.json(roomDocs.deleteHandoverPhoto(req.params.id))));
+
+// ── Log perbaikan kamar ──
+app.get('/api/repairs', h((req, res) => res.json(roomDocs.listRepairs({ room: req.query.room, status: req.query.status }))));
+app.get('/api/repairs/summary', h((_req, res) => res.json({ ...roomDocs.repairSummary(), categories: roomDocs.REPAIR_CATEGORIES })));
+app.post('/api/repairs', h((req, res) => res.status(201).json(roomDocs.createRepair(req.body || {}, req.user))));
+app.put('/api/repairs/:id', h((req, res) => res.json(roomDocs.updateRepair(req.params.id, req.body || {}))));
+app.delete('/api/repairs/:id', pemilik, h((req, res) => res.json(roomDocs.deleteRepair(req.params.id))));
+
 // ── Applications ──
 app.get('/api/applications', h((req, res) => res.json(repo.listApplications(req.query.status))));
 app.post('/api/applications/:id/approve', h((req, res) => {
   const room = String(req.body?.room || '').trim();
   if (!room) throw bad('Nomor kamar wajib dipilih.');
+  const photos = Array.isArray(req.body.handoverPhotos) ? req.body.handoverPhotos : [];
+  if (photos.length > roomDocs.MAX_HANDOVER) throw bad(`Maksimal ${roomDocs.MAX_HANDOVER} foto pengesahan kamar.`);
   const resident = repo.approveApplication(req.params.id, {
     room, dueDay: req.body.dueDay, rent: req.user.role === 'pemilik' ? req.body.rent : undefined,
     stayMonths: req.body.stayMonths === undefined ? undefined : parseStayMonths(req.body.stayMonths),
   });
+  // Foto pengesahan kondisi kamar (opsional) — kegagalan foto tidak membatalkan persetujuan.
+  let photoError = '';
+  if (photos.length) {
+    try { roomDocs.addHandoverPhotos(resident.id, photos, { user: req.user }); } catch (e) { photoError = e.message; }
+  }
   kickJobs();
-  res.json({ ok: true, resident });
+  res.json({ ok: true, resident, photos: photoError ? 0 : photos.length, photoError });
 }));
 app.post('/api/applications/:id/reject', h((req, res) => {
   const info = db.prepare("UPDATE applications SET status = 'rejected', reason = ? WHERE id = ? AND status = 'pending'")

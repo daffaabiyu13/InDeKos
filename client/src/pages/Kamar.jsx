@@ -10,6 +10,7 @@ import Modal from '../components/Modal.jsx';
 import { revealOnSmall } from '../responsive.js';
 import { StayPill } from '../components/StayInput.jsx';
 import { RoomTypeModal, ChangeTypeModal, RoomHistory } from '../components/RoomTypes.jsx';
+import { RoomRepairs, RepairLogCard } from '../components/Repairs.jsx';
 
 const STATUS = {
   oc: { label: 'Terisi', cls: 'oc' },
@@ -85,6 +86,8 @@ export default function Kamar({ version, onChange }) {
         </div>
       </div>
 
+      <RepairLogCard rooms={rooms} version={`${version}-${ver}`} reload={reload} />
+
       <div className="card">
         <div className="ch">
           <div><div className="ct">Tipe Kamar, Harga & Fasilitas</div><div className="cs">{isPemilik ? 'Atur sendiri harga dan fasilitas setiap tipe' : 'Hanya pemilik yang dapat mengubah'}</div></div>
@@ -119,7 +122,6 @@ function RoomDetail({ room, types, reload }) {
   const confirm = useConfirm();
   const nav = useNavigate();
   const { isPemilik } = useAuth();
-  const [note, setNote] = useState(room.note || '');
   const [changing, setChanging] = useState(false);
   const [histVer, setHistVer] = useState(0);
   const res = room.resident;
@@ -163,15 +165,10 @@ function RoomDetail({ room, types, reload }) {
         </div>
       )}
 
-      <div className="fp-sec">Status Perbaikan</div>
-      <label className="switch-row fg">
-        <input type="checkbox" checked={room.maintenance} onChange={(e) => update({ maintenance: e.target.checked, note }, e.target.checked ? 'Kamar ditandai sedang perbaikan.' : 'Perbaikan selesai.')} />
-        Kamar sedang dalam perbaikan
+      <label className="switch-row fg" style={{ marginTop: 4 }}>
+        <input type="checkbox" checked={room.maintenance} onChange={(e) => update({ maintenance: e.target.checked }, e.target.checked ? 'Kamar ditandai sedang perbaikan.' : 'Status perbaikan dicabut.')} />
+        Kamar sedang dalam perbaikan (tidak bisa ditempati)
       </label>
-      <div className="fg" style={{ display: 'flex', gap: 6 }}>
-        <input className="fi" placeholder="Catatan perbaikan (mis. plafon bocor)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <button className="btn btn-g btn-sm" onClick={() => update({ note }, 'Catatan disimpan.')}>Simpan</button>
-      </div>
 
       <div style={{ display: 'flex', gap: 7, marginTop: 6, flexWrap: 'wrap' }}>
         {res && <button className="btn btn-g btn-sm" onClick={() => openWhatsApp(res.wa, `Halo ${res.name}, `)}>Hubungi WA</button>}
@@ -182,6 +179,7 @@ function RoomDetail({ room, types, reload }) {
         )}
         {isPemilik && !res && <button className="btn btn-g btn-sm" onClick={remove}>Hapus Kamar</button>}
       </div>
+      <RoomRepairs room={room} reload={reload} />
       <RoomHistory number={room.number} version={histVer} limit={3} />
       {changing && <ChangeTypeModal numbers={[room.number]} types={types} onClose={() => setChanging(false)} onDone={() => { setHistVer((v) => v + 1); reload(); }} />}
     </>

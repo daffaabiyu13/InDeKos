@@ -161,4 +161,14 @@ export const api = {
   aiInsights: (scope, id) => get(`/ai/insights?${qs({ scope, id })}`),
   aiChat: (d) => post('/ai/chat', d),
   aiTest: () => post('/ai/test'),
+
+  // Foto pengesahan kamar & log perbaikan
+  handoverPhotos: (residentId) => get(`/residents/${residentId}/handover-photos`),
+  addHandoverPhotos: (residentId, photos) => post(`/residents/${residentId}/handover-photos`, { photos }),
+  deleteHandoverPhoto: (id) => del(`/handover-photos/${id}`),
+  repairs: (room, status) => get(`/repairs?${qs({ room, status })}`),
+  repairSummary: () => get('/repairs/summary'),
+  addRepair: (d) => post('/repairs', d),
+  updateRepair: (id, d) => put(`/repairs/${id}`, d),
+  deleteRepair: (id) => del(`/repairs/${id}`),
 };

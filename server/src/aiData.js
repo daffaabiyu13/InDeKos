@@ -94,6 +94,7 @@ export function snapshot(today = todayISO()) {
   const exits = db.prepare("SELECT * FROM exit_requests WHERE status = 'pending' ORDER BY exitDate").all();
   const applications = repo.listApplications('pending');
   const transfers = listTransfers();
+  const repairs = db.prepare('SELECT id, room, date, title, category, status, cost, vendor, doneDate, blockRoom FROM room_repairs ORDER BY date DESC, id DESC LIMIT 400').all();
   const mantan = db.prepare('SELECT * FROM mantan ORDER BY keluar DESC').all();
   const expenses = db.prepare('SELECT id, date, description, cat, amount, source, merchant FROM expenses ORDER BY date DESC').all();
   const promos = db.prepare('SELECT * FROM promos').all();
@@ -115,7 +116,7 @@ export function snapshot(today = todayISO()) {
   }));
 
   return {
-    today, s, rooms, residents: residentsX, stats, violations, exits, transfers, applications, mantan, expenses, promos, types,
+    today, s, rooms, residents: residentsX, stats, violations, exits, transfers, repairs, applications, mantan, expenses, promos, types,
     openInvoices, months, incomeBy, expenseBy,
     thisMonth: months[months.length - 1],
     prevMonth: months[months.length - 2],
@@ -299,7 +300,20 @@ const builders = {
       if (p === 100 && list.length >= 2) out.push(I('ok', '📈', `Tipe ${t.name} penuh`, `${oc}/${list.length} terisi. Permintaan tinggi — harga ${fmtRp(t.price)} bisa dievaluasi naik saat kontrak baru.`));
       else if (p < 60) out.push(I('warn', '📉', `Tipe ${t.name} sepi (${p}%)`, `${oc}/${list.length} terisi. Coba promo khusus tipe ini atau tinjau harga ${fmtRp(t.price)}.`));
     }
-    if (occ.mn.length) out.push(I('warn', '🛠️', `${plural(occ.mn.length, 'kamar')} dalam perbaikan`, `${occ.mn.map((r) => r.number).join(', ')}. Selesaikan agar bisa disewakan kembali.`));
+    const openRep = S.repairs.filter((x) => x.status !== 'selesai');
+    if (openRep.length) {
+      out.push(I('warn', '🛠️', `${plural(openRep.length, 'perbaikan')} belum selesai`,
+        `${openRep.slice(0, 5).map((x) => `- Kamar **${x.room}**: ${x.title} — ${x.status}, ${daysBetween(x.date, S.today)} hari${x.blockRoom ? ' (kamar tidak bisa dihuni)' : ''}`).join('\n')}${occ.mn.length ? `\nSelesaikan agar kamar ${occ.mn.map((r) => r.number).join(', ')} bisa disewakan kembali.` : ''}`));
+    } else if (occ.mn.length) out.push(I('warn', '🛠️', `${plural(occ.mn.length, 'kamar')} dalam perbaikan`, `${occ.mn.map((r) => r.number).join(', ')}. Selesaikan agar bisa disewakan kembali.`));
+    const yearAgo = addDays(S.today, -365);
+    const byRoom = {};
+    for (const x of S.repairs.filter((r) => r.date >= yearAgo)) {
+      const v = (byRoom[x.room] ||= { n: 0, cost: 0 });
+      v.n++;
+      v.cost += x.cost || 0;
+    }
+    const often = Object.entries(byRoom).filter(([, v]) => v.n >= 2).sort((a, b) => b[1].n - a[1].n || b[1].cost - a[1].cost);
+    if (often.length) out.push(I('info', '🔁', 'Kamar sering diperbaiki (12 bulan)', `${often.slice(0, 4).map(([room, v]) => `Kamar **${room}**: ${v.n}× perbaikan${v.cost ? `, ${fmtRp(v.cost)}` : ''}`).join('\n')}\nPertimbangkan perbaikan menyeluruh / ganti perabot agar tidak berulang.`));
     const leaving = S.exits.map((e) => e.room);
     if (leaving.length) out.push(I('info', '🚪', 'Akan kosong', `Kamar ${leaving.join(', ')} akan kosong (pengajuan keluar). Mulai promosikan dari sekarang.`, '/pengajuan-keluar'));
     const ending = stayEndingOf(S, 45);
@@ -727,6 +741,7 @@ export function contextFor(scope, id, S = snapshot(), viewer = null) {
     });
   }
   if (sc === 'kamar') {
+    extra.perbaikan = S.repairs.slice(0, 150).map((x) => ({ kamar: x.room, tgl: x.date, masalah: x.title, kategori: x.category, status: x.status, biaya: x.cost, selesai: x.doneDate || null }));
     extra.kamar = S.rooms.map((r) => ({ nomor: r.number, lantai: r.floor, tipe: r.typeName, harga: r.typePrice, status: { oc: 'terisi', av: 'kosong', mn: 'perbaikan' }[r.status], penghuni: r.resident?.name || null, kosongHari: r.status === 'av' ? vacantSince(S, r.number) : null }));
   }
   if (sc === 'resident') {

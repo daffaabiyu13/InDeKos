@@ -442,6 +442,32 @@ code { background: var(--surf2); border: 1px solid var(--bdr); border-radius: 4p
 .face-pair img { width: 100%; height: 170px; object-fit: cover; border-radius: 8px; border: 1px solid var(--bdr); display: block; background: var(--surf2); }
 .face-pair figcaption { font-size: 11.5px; color: var(--t2); text-align: center; margin-top: 4px; }
 .photo-missing { height: 170px; border-radius: 8px; border: 1px dashed var(--bdr); display: flex; align-items: center; justify-content: center; color: var(--t3); font-size: 12px; }
+.span-2 { grid-column: 1 / -1; }
+/* Banyak foto (pengesahan kamar, perbaikan) */
+.mp-grid, .pg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.mp-item { display: grid; gap: 5px; min-width: 0; }
+.mp-thumb, .pg-item { position: relative; margin: 0; min-width: 0; }
+.mp-thumb img, .pg-thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; border: 1px solid var(--bdr); display: block; background: var(--surf2); }
+.pg-thumb { display: block; width: 100%; padding: 0; border: none; background: none; cursor: zoom-in; border-radius: 8px; }
+.pg-thumb:focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+.pg-item figcaption { font-size: 11.5px; color: var(--t1); margin-top: 4px; line-height: 1.35; overflow-wrap: anywhere; }
+.pg-item figcaption span { display: block; color: var(--t3); font-size: 11px; }
+.mp-del { position: absolute; top: 5px; right: 5px; width: 28px; height: 28px; border-radius: 50%; border: none; background: rgba(32, 40, 29, .72); color: #fff; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.mp-del:hover { background: var(--err); }
+.mp-cap { padding: 6px 8px; font-size: 12px; }
+.mp-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.ho-compare { margin-top: 6px; }
+.lb { position: fixed; inset: 0; z-index: 400; background: rgba(14, 18, 13, .9); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.lb-inner { max-width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 8px; }
+.lb-inner img { max-width: 100%; max-height: calc(100vh - 110px); max-height: calc(100dvh - 110px); object-fit: contain; border-radius: 8px; background: #000; }
+.lb-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #fff; font-size: 13px; }
+.lb-bar .btn-g { color: #fff; border-color: rgba(255, 255, 255, .35); }
+.lb-n { opacity: .65; margin-left: 6px; }
+.lb-nav, .lb-close { position: absolute; border: none; background: rgba(255, 255, 255, .14); color: #fff; cursor: pointer; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.lb-nav { top: 50%; transform: translateY(-50%); width: 44px; height: 44px; font-size: 28px; line-height: 1; }
+.lb-nav.prev { left: 10px; } .lb-nav.next { right: 10px; }
+.lb-close { top: 12px; right: 12px; width: 40px; height: 40px; font-size: 16px; }
+.lb-nav:hover, .lb-close:hover { background: rgba(255, 255, 255, .26); }
 .face-status { font-size: 12.5px; padding: 10px 13px; border-radius: 8px; margin: 4px 0 12px; line-height: 1.5; display: flex; gap: 8px; align-items: flex-start; }
 .face-status.neutral { background: var(--surf2); color: var(--t2); border: 1px solid var(--bdr); }
 .face-status.ok { background: var(--ok-bg); color: var(--ok); font-weight: 600; }
@@ -649,6 +675,22 @@ button.fac:hover { border-color: var(--jade); color: var(--jade-d); }
 .seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .seg label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1.5px solid var(--bdr); border-radius: 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: var(--surf); }
 .seg label.on { border-color: var(--jade); background: var(--jade-bg); color: var(--jade-d); }
+.seg-btn { padding: 8px 14px; border: 1.5px solid var(--bdr); border-radius: 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: var(--surf); color: var(--t2); min-height: 38px; }
+.seg-btn.on { border-color: var(--jade); background: var(--jade-bg); color: var(--jade-d); }
+/* Log perbaikan kamar */
+.rp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0 8px; flex-wrap: wrap; }
+.rp-list { display: grid; gap: 7px; }
+.rp-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.rp-item { display: block; width: 100%; text-align: left; background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; padding: 10px 12px; cursor: pointer; font: inherit; color: inherit; transition: border-color .13s, background .13s; }
+.rp-item:hover, .rp-item:focus-visible { border-color: var(--jade); background: var(--surf2); outline: none; }
+.rp-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.rp-title { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
+.rp-room { display: inline-block; font-size: 11px; font-weight: 700; color: var(--jade-d); background: var(--jade-bg); border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
+.rp-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px; font-size: 11.5px; color: var(--t2); }
+.rp-cost { font-weight: 700; color: var(--t1); }
+.rp-block { color: var(--warn, #B7791F); font-weight: 600; }
+.rp-rp { display: flex; align-items: center; gap: 6px; }
+.rp-rp span { font-size: 13px; color: var(--t2); font-weight: 600; }
 .seg input { accent-color: var(--jade); }
 .room-hist { margin-top: 12px; }
 .room-hist-row { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed var(--bdr); font-size: 12.5px; }

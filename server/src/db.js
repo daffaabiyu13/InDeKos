@@ -234,6 +234,28 @@ db.exec(`
     note TEXT DEFAULT '', userName TEXT DEFAULT '', createdAt TEXT
   );
 
+  -- Foto pengesahan kondisi kamar saat penghuni mulai menempati (bukti serah terima).
+  CREATE TABLE IF NOT EXISTS handover_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    residentId INTEGER NOT NULL, residentName TEXT DEFAULT '', room TEXT NOT NULL,
+    file TEXT NOT NULL, caption TEXT DEFAULT '', takenAt TEXT NOT NULL,
+    createdBy TEXT DEFAULT '', createdAt TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_handover_resident ON handover_photos(residentId);
+
+  -- Log / riwayat perbaikan kamar.
+  CREATE TABLE IF NOT EXISTS room_repairs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room TEXT NOT NULL, date TEXT NOT NULL, title TEXT NOT NULL, category TEXT DEFAULT 'Lainnya',
+    description TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'dilaporkan', -- dilaporkan | dikerjakan | selesai
+    cost INTEGER NOT NULL DEFAULT 0, vendor TEXT DEFAULT '', doneDate TEXT DEFAULT '',
+    photosBefore TEXT DEFAULT '[]', photosAfter TEXT DEFAULT '[]',
+    blockRoom INTEGER DEFAULT 0, recordExpense INTEGER DEFAULT 0, expenseId INTEGER,
+    residentId INTEGER, residentName TEXT DEFAULT '',
+    createdBy TEXT DEFAULT '', createdAt TEXT, updatedAt TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_repairs_room ON room_repairs(room, date);
+
   CREATE TABLE IF NOT EXISTS activities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     c TEXT, t TEXT, createdAt TEXT
@@ -423,6 +445,21 @@ if (!getMeta('stay_default_6')) {
 if (!getMeta('receipt_backfill')) {
   db.prepare("UPDATE invoices SET receiptSentAt = '-' WHERE status = 'paid' AND receiptSentAt = ''").run();
   setMeta('receipt_backfill', nowStamp());
+}
+
+// Catatan perbaikan lama (satu kolom note di kamar) dipindah ke log perbaikan.
+if (!getMeta('repairs_from_notes')) {
+  const rows = db.prepare("SELECT number, maintenance, note FROM rooms WHERE TRIM(note) != ''").all();
+  const ins = db.prepare(`INSERT INTO room_repairs(room,date,title,category,status,doneDate,blockRoom,createdBy,createdAt,updatedAt)
+    VALUES(?,?,?,'Lainnya',?,?,?,'sistem',?,?)`);
+  const today = todayISO(); const now = nowStamp();
+  tx(() => {
+    for (const r of rows) {
+      ins.run(r.number, today, r.note.trim().slice(0, 200), r.maintenance ? 'dikerjakan' : 'selesai', r.maintenance ? '' : today, r.maintenance ? 1 : 0, now, now);
+    }
+  });
+  setMeta('repairs_from_notes', now);
+  if (rows.length) console.log(`[db] ${rows.length} catatan perbaikan kamar dipindah ke log perbaikan.`);
 }
 
 export default db;

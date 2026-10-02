@@ -339,5 +339,92 @@ console.log('— Pindah kamar');
   ok(h1.fromPrice === std.price && h1.toPrice === prem.price && h1.fromTypeName === 'Standar' && h1.toTypeNameNow.includes('Premium'), 'riwayat memakai harga & tipe saat pindah (bukan kondisi sekarang)', JSON.stringify(h1));
 }
 
+console.log('— Foto pengesahan kamar');
+{
+  const TODAY = process.env.APP_TODAY;
+  const appBody = (name) => ({ name, wa: '081299990000', wali: 'Ibu', waWali: '081200000001', emergency2Name: 'Kakak', emergency2Wa: '081200000002', ktpPhoto: JPG, selfiePhoto: JPG });
+  await call('POST', '/public/applications', appBody('Dina Pengesahan'));
+  await call('POST', '/public/applications', appBody('Eko Fotogagal'));
+  await call('POST', '/public/applications', appBody('Fajar Kebanyakan'));
+  const pend = (await call('GET', '/applications?status=pending', null, A)).data;
+  const freeRooms = async () => (await call('GET', '/rooms', null, A)).data.filter((x) => x.status === 'av' && !x.reserved);
+  const dina = pend.find((a) => a.name === 'Dina Pengesahan');
+  const fajar = pend.find((a) => a.name === 'Fajar Kebanyakan');
+  let x = await call('POST', `/applications/${fajar.id}/approve`, { room: (await freeRooms())[0].number, handoverPhotos: Array.from({ length: 13 }, () => ({ data: JPG })) }, A);
+  ok(x.status === 400 && (await call('GET', '/applications?status=pending', null, A)).data.some((a) => a.id === fajar.id), 'lebih dari 12 foto → ditolak, pendaftaran tetap menunggu');
+  const roomD = (await freeRooms())[0].number;
+  x = await call('POST', `/applications/${dina.id}/approve`, { room: roomD, handoverPhotos: [{ data: JPG, caption: 'Kasur' }, { data: JPG, caption: 'Lemari' }] }, A);
+  ok(x.status === 200 && x.data.photos === 2 && !x.data.photoError, 'ACC pendaftar + 2 foto pengesahan');
+  const dinaId = x.data.resident.id;
+  let det = (await call('GET', `/residents/${dinaId}`, null, A)).data;
+  ok(det.handoverPhotos.length === 2 && det.handoverPhotos[0].caption === 'Kasur' && det.handoverPhotos[0].room === roomD && det.handoverPhotos[0].takenAt === TODAY && det.handoverPhotos[0].createdBy,
+    'foto tampil di profil penghuni (keterangan, kamar, tanggal, pencatat)', JSON.stringify(det.handoverPhotos[0]));
+  const file = det.handoverPhotos[0].file;
+  ok((await fetch(`${BASE}/files/${file}`)).status === 401 && (await fetch(`${BASE}/files/${file}?token=${A}`)).status === 200, 'foto hanya untuk staf');
+  const eko = pend.find((a) => a.name === 'Eko Fotogagal');
+  x = await call('POST', `/applications/${eko.id}/approve`, { room: (await freeRooms())[0].number, handoverPhotos: [{ data: 'data:image/jpeg;base64,SGVsbG8=' }] }, A);
+  ok(x.status === 200 && x.data.resident && x.data.photos === 0 && x.data.photoError, 'foto tidak valid → pendaftar tetap di-ACC, ada pesan foto gagal');
+  ok((await call('POST', `/residents/${dinaId}/handover-photos`, { photos: [] }, A)).status === 400, 'tambah foto tanpa foto → ditolak');
+  ok((await call('POST', `/residents/${dinaId}/handover-photos`, { photos: [{ data: 'data:image/png;base64,AAAA' }] }, A)).status === 400, 'file bukan gambar → ditolak');
+  x = await call('POST', `/residents/${dinaId}/handover-photos`, { photos: [{ data: JPG, caption: 'Kamar mandi' }] }, A);
+  ok(x.status === 201 && x.data.length === 3, 'admin menambah foto susulan');
+  ok((await call('POST', `/residents/${dinaId}/handover-photos`, { photos: Array.from({ length: 10 }, () => ({ data: JPG })) }, A)).status === 400, 'batas 12 foto per penghuni');
+  const one = x.data[2];
+  ok((await call('DELETE', `/handover-photos/${one.id}`, null, A)).status === 403, 'admin tidak bisa menghapus foto pengesahan');
+  ok((await call('DELETE', `/handover-photos/${one.id}`, null, P)).status === 200 && (await fetch(`${BASE}/files/${one.file}?token=${P}`)).status === 404, 'pemilik menghapus foto (file ikut terhapus)');
+  ok((await call('GET', `/residents/${dinaId}/handover-photos`, null, A)).data.length === 2, 'daftar foto pengesahan per penghuni');
+}
+
+console.log('— Log perbaikan kamar');
+{
+  const TODAY = process.env.APP_TODAY;
+  let rooms = (await call('GET', '/rooms', null, A)).data;
+  const migrated = (await call('GET', '/repairs?room=116', null, A)).data;
+  ok(migrated.length === 1 && migrated[0].title === 'Perbaikan plafon bocor' && migrated[0].status === 'dikerjakan' && migrated[0].blockRoom, 'catatan perbaikan lama (kamar 116) dipindah ke log');
+  const empty = rooms.find((x) => x.status === 'av' && !x.reserved);
+  const occ = rooms.find((x) => x.status === 'oc');
+  ok((await call('POST', '/repairs', { room: empty.number }, A)).status === 400, 'tanpa masalah → ditolak');
+  ok((await call('POST', '/repairs', { room: 'ZZZ', title: 'x' }, A)).status === 404, 'kamar tidak ada → 404');
+  ok((await call('POST', '/repairs', { room: empty.number, title: 'x', date: TODAY, status: 'selesai', doneDate: '2020-01-01' }, A)).status === 400, 'tanggal selesai sebelum lapor → ditolak');
+  let x = await call('POST', '/repairs', { room: empty.number, title: 'AC tidak dingin', category: 'AC / Kipas', cost: '250.000', vendor: 'Pak Slamet', blockRoom: true, recordExpense: true, photosBefore: [JPG, JPG] }, A);
+  ok(x.status === 201 && x.data.status === 'dilaporkan' && x.data.cost === 250000 && x.data.photosBefore.length === 2 && x.data.expenseId && x.data.createdBy, 'perbaikan dicatat (biaya, vendor, 2 foto sebelum)');
+  const rep1 = x.data;
+  let room = (await call('GET', '/rooms', null, A)).data.find((r) => r.number === empty.number);
+  ok(room.status === 'mn', 'kamar otomatis berstatus Perbaikan');
+  let exp = (await call('GET', '/expenses', null, A)).data.find((e) => e.id === rep1.expenseId);
+  ok(exp && exp.cat === 'Perawatan' && exp.amount === 250000 && exp.source === 'perbaikan' && exp.description.includes(empty.number) && exp.merchant === 'Pak Slamet', 'biaya tercatat di Pengeluaran (Perawatan)');
+  x = await call('POST', '/repairs', { room: empty.number, title: 'Cat dinding', blockRoom: true }, A);
+  const rep2 = x.data;
+  x = await call('PUT', `/repairs/${rep1.id}`, { status: 'selesai', cost: 300000, addPhotosAfter: [JPG], removePhotos: [rep1.photosBefore[0]] }, A);
+  ok(x.status === 200 && x.data.status === 'selesai' && x.data.doneDate === TODAY && x.data.photosAfter.length === 1 && x.data.photosBefore.length === 1, 'tandai selesai + foto sesudah, hapus 1 foto sebelum');
+  ok((await fetch(`${BASE}/files/${rep1.photosBefore[0]}?token=${A}`)).status === 404, 'foto yang dihapus ikut terhapus dari disk');
+  exp = (await call('GET', '/expenses', null, A)).data.find((e) => e.id === rep1.expenseId);
+  ok(exp.amount === 300000, 'perubahan biaya ikut memperbarui pengeluaran');
+  room = (await call('GET', '/rooms', null, A)).data.find((r) => r.number === empty.number);
+  ok(room.status === 'mn', 'masih ada perbaikan lain yang memblokir → kamar tetap Perbaikan');
+  await call('PUT', `/repairs/${rep2.id}`, { status: 'selesai' }, A);
+  room = (await call('GET', '/rooms', null, A)).data.find((r) => r.number === empty.number);
+  ok(room.status === 'av', 'semua perbaikan selesai → kamar kembali Kosong');
+  x = await call('POST', '/repairs', { room: occ.number, title: 'Keran bocor', category: 'Air & Pipa', blockRoom: false, cost: 50000, recordExpense: false }, A);
+  room = (await call('GET', '/rooms', null, A)).data.find((r) => r.number === occ.number);
+  ok(x.data.residentName === occ.resident.name && !x.data.expenseId && room.status === 'oc', 'kamar berpenghuni: penghuni tercatat, status tetap Terisi, biaya tidak dicatat');
+  const rep3 = x.data;
+  x = await call('PUT', `/repairs/${rep3.id}`, { recordExpense: true }, A);
+  ok(x.data.expenseId, 'mengaktifkan "catat ke pengeluaran" belakangan');
+  const exp3 = x.data.expenseId;
+  x = await call('PUT', `/repairs/${rep3.id}`, { recordExpense: false }, A);
+  ok(!x.data.expenseId && !(await call('GET', '/expenses', null, A)).data.some((e) => e.id === exp3), 'menonaktifkan → pengeluaran dihapus');
+  const open = (await call('GET', '/repairs?status=open', null, A)).data;
+  const done = (await call('GET', '/repairs?status=done', null, A)).data;
+  ok(open.every((r) => r.status !== 'selesai') && open.some((r) => r.id === rep3.id) && done.some((r) => r.id === rep1.id) && !open.some((r) => r.id === rep1.id), 'filter belum selesai / selesai');
+  const sum = (await call('GET', '/repairs/summary', null, A)).data;
+  ok(sum.open === open.length && sum.yearCost >= 350000 && sum.categories.includes('Listrik'), 'ringkasan: belum selesai & biaya tahun ini', JSON.stringify(sum));
+  ok((await call('GET', `/repairs?room=${empty.number}`, null, A)).data.length === 2, 'riwayat per kamar');
+  const ins = (await call('GET', '/ai/insights?scope=kamar', null, A)).data.insights;
+  ok(ins.some((i) => /perbaikan belum selesai/.test(i.title) && /Keran bocor/.test(i.text)) && ins.some((i) => /sering diperbaiki/.test(i.title) && new RegExp(empty.number).test(i.text)), 'AI kamar: perbaikan berjalan & kamar sering diperbaiki');
+  ok((await call('DELETE', `/repairs/${rep1.id}`, null, A)).status === 403, 'admin tidak bisa menghapus log');
+  ok((await call('DELETE', `/repairs/${rep1.id}`, null, P)).status === 200 && !(await call('GET', '/expenses', null, A)).data.some((e) => e.id === rep1.expenseId), 'pemilik menghapus log (pengeluaran terkait ikut terhapus)');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

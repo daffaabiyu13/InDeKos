@@ -40,3 +40,27 @@ export function sendImage(req, res) {
   res.setHeader('Cache-Control', 'private, max-age=3600');
   res.sendFile(file);
 }
+
+// Hapus file unggahan (abaikan bila sudah tidak ada).
+export function deleteImage(name) {
+  if (!name || !NAME_RE.test(name)) return;
+  fs.rmSync(path.join(UPLOAD_DIR, name), { force: true });
+}
+
+// Simpan beberapa foto sekaligus; bila satu gagal, yang sudah tersimpan dihapus lagi.
+export function saveImages(list, prefix, max) {
+  const items = Array.isArray(list) ? list : [];
+  if (items.length > max) throw invalid(`Maksimal ${max} foto sekaligus.`);
+  const saved = [];
+  try {
+    for (const it of items) {
+      const data = typeof it === 'string' ? it : it?.data;
+      const file = saveImage(data, prefix);
+      if (file) saved.push({ file, caption: String((typeof it === 'object' && it?.caption) || '').trim().slice(0, 120) });
+    }
+  } catch (e) {
+    for (const s of saved) deleteImage(s.file);
+    throw e;
+  }
+  return saved;
+}

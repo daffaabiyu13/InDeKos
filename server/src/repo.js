@@ -66,6 +66,7 @@ export function residentDetail(id) {
     charges: db.prepare('SELECT * FROM charges WHERE residentId = ? ORDER BY active DESC, id DESC').all(r.id),
     violations: db.prepare(`SELECT v.*, c.name AS categoryName FROM violations v
       LEFT JOIN violation_categories c ON c.id = v.categoryId WHERE v.residentId = ? ORDER BY v.date DESC`).all(r.id),
+    handoverPhotos: db.prepare('SELECT * FROM handover_photos WHERE residentId = ? ORDER BY takenAt, id').all(r.id),
   };
 }
 

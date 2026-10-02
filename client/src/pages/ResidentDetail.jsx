@@ -13,6 +13,7 @@ import Modal from '../components/Modal.jsx';
 import FaceCheck from '../components/FaceCheck.jsx';
 import StayInput, { StayPill } from '../components/StayInput.jsx';
 import TransferModal from '../components/TransferModal.jsx';
+import { HandoverCard, HandoverCompare } from '../components/Handover.jsx';
 
 const TABS = [
   ['tagihan', 'Tagihan'],
@@ -373,6 +374,7 @@ function ProfileTab({ r, reload }) {
           <FaceCheck ktp={r.ktpPhoto} selfie={r.selfiePhoto} storedScore={r.faceScore} />
         </div>
       </div>
+      <div className="span-2"><HandoverCard r={r} reload={reload} /></div>
     </div>
   );
 }
@@ -458,7 +460,7 @@ function CheckoutModal({ r, onClose, onDone }) {
     } catch (e) { toast(`⚠️ ${e.message}`); setBusy(false); }
   }
   return (
-    <Modal title={`Proses Keluar · ${r.name}`} onClose={onClose} width={480} footer={<>
+    <Modal title={`Proses Keluar · ${r.name}`} onClose={onClose} width={r.handoverPhotos?.length ? 620 : 480} footer={<>
       <button className="btn btn-g" onClick={onClose}>Batal</button>
       <button className="btn btn-d" onClick={submit} disabled={busy}>{busy ? 'Memproses…' : 'Proses Keluar'}</button>
     </>}>
@@ -476,6 +478,7 @@ function CheckoutModal({ r, onClose, onDone }) {
         {r.dailyRateEnabled ? ' Rate harian aktif: periode berjalan dihitung pro-rata sampai tanggal keluar.' : ' Rate harian nonaktif: periode berjalan tetap ditagih penuh.'}
         {' '}Charge bulanan dihentikan.
       </div>
+      <HandoverCompare photos={r.handoverPhotos} />
     </Modal>
   );
 }
