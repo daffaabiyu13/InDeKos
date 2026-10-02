@@ -2,7 +2,7 @@
 // Dokumentasi kamar:
 //  • Foto pengesahan — kondisi kamar saat penghuni mulai menempati
 //    (diambil saat pendaftaran di-ACC, tampil di profil penghuni).
-//  • Log perbaikan — riwayat perbaikan per kamar: status, biaya,
+//  • Perbaikan kamar — riwayat perbaikan per kamar: status, biaya,
 //    tukang/vendor, foto sebelum/sesudah. Bisa menandai kamar
 //    "Perbaikan" selama dikerjakan dan mencatat biaya ke Pengeluaran.
 // ─────────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ export function createRepair(b = {}, user = null) {
 
 export function updateRepair(id, b = {}) {
   const prev = getRepair(id);
-  if (!prev) throw bad('Log perbaikan tidak ditemukan.', 404);
+  if (!prev) throw bad('Catatan perbaikan tidak ditemukan.', 404);
   const d = clean(b, prev);
   const remove = new Set(Array.isArray(b.removePhotos) ? b.removePhotos.map(String) : []);
   let before = prev.photosBefore.filter((f) => !remove.has(f));
@@ -185,7 +185,7 @@ export function updateRepair(id, b = {}) {
 
 export function deleteRepair(id) {
   const prev = getRepair(id);
-  if (!prev) throw bad('Log perbaikan tidak ditemukan.', 404);
+  if (!prev) throw bad('Catatan perbaikan tidak ditemukan.', 404);
   tx(() => {
     if (prev.expenseId) db.prepare('DELETE FROM expenses WHERE id = ?').run(prev.expenseId);
     db.prepare('DELETE FROM room_repairs WHERE id = ?').run(prev.id);

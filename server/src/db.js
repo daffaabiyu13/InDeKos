@@ -447,7 +447,7 @@ if (!getMeta('receipt_backfill')) {
   setMeta('receipt_backfill', nowStamp());
 }
 
-// Catatan perbaikan lama (satu kolom note di kamar) dipindah ke log perbaikan.
+// Catatan perbaikan lama (satu kolom note di kamar) dipindah ke riwayat perbaikan kamar.
 if (!getMeta('repairs_from_notes')) {
   const rows = db.prepare("SELECT number, maintenance, note FROM rooms WHERE TRIM(note) != ''").all();
   const ins = db.prepare(`INSERT INTO room_repairs(room,date,title,category,status,doneDate,blockRoom,createdBy,createdAt,updatedAt)
@@ -459,7 +459,7 @@ if (!getMeta('repairs_from_notes')) {
     }
   });
   setMeta('repairs_from_notes', now);
-  if (rows.length) console.log(`[db] ${rows.length} catatan perbaikan kamar dipindah ke log perbaikan.`);
+  if (rows.length) console.log(`[db] ${rows.length} catatan perbaikan kamar dipindah ke riwayat perbaikan.`);
 }
 
 export default db;

@@ -1,4 +1,4 @@
-// Log perbaikan kamar: catat masalah, status pengerjaan, biaya, tukang/vendor,
+// Perbaikan kamar: catat masalah, status pengerjaan, biaya, tukang/vendor,
 // foto sebelum & sesudah. Bisa menandai kamar "Perbaikan" selama dikerjakan
 // dan mencatat biaya ke Pengeluaran (kategori Perawatan).
 import { useState } from 'react';
@@ -68,7 +68,7 @@ export function RoomRepairs({ room, reload }) {
   );
 }
 
-// Kartu "Log Perbaikan Kamar" di halaman Kamar (semua kamar).
+// Kartu "Perbaikan Kamar" di halaman Kamar (semua kamar).
 export function RepairLogCard({ rooms, version, reload }) {
   const [status, setStatus] = useState('open');
   const [ver, setVer] = useState(0);
@@ -78,10 +78,10 @@ export function RepairLogCard({ rooms, version, reload }) {
   const done = () => { setVer((v) => v + 1); reload(); };
   const pickRoom = modal && (modal.id ? rooms.find((r) => r.number === modal.room) || { number: modal.room } : null);
   return (
-    <div className="card mb" id="log-perbaikan">
+    <div className="card mb" id="perbaikan-kamar">
       <div className="ch">
         <div>
-          <div className="ct">Log Perbaikan Kamar</div>
+          <div className="ct">Perbaikan Kamar</div>
           {sum && <div className="cs">{sum.open} belum selesai · {sum.yearCount} perbaikan tahun {sum.year} · biaya {fmtRp(sum.yearCost)}</div>}
         </div>
         <button className="btn btn-p btn-sm" onClick={() => setModal({})}>+ Catat Perbaikan</button>
@@ -137,8 +137,8 @@ export function RepairModal({ repair, room, rooms = [], onClose, onDone }) {
     } catch (e) { toast(`⚠️ ${e.message}`); setBusy(false); }
   }
   async function remove() {
-    if (!(await confirm({ title: 'Hapus Log Perbaikan', message: `Hapus "${repair.title}" (kamar ${repair.room}) dari riwayat?${repair.expenseId ? ' Pengeluaran terkait juga dihapus.' : ''}`, confirmText: 'Hapus', danger: true }))) return;
-    try { await api.deleteRepair(repair.id); toast('Log perbaikan dihapus.'); onDone(); onClose(); } catch (e) { toast(`⚠️ ${e.message}`); }
+    if (!(await confirm({ title: 'Hapus Catatan Perbaikan', message: `Hapus "${repair.title}" (kamar ${repair.room}) dari riwayat?${repair.expenseId ? ' Pengeluaran terkait juga dihapus.' : ''}`, confirmText: 'Hapus', danger: true }))) return;
+    try { await api.deleteRepair(repair.id); toast('Catatan perbaikan dihapus.'); onDone(); onClose(); } catch (e) { toast(`⚠️ ${e.message}`); }
   }
 
   return (

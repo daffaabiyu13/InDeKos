@@ -162,7 +162,7 @@ export const api = {
   aiChat: (d) => post('/ai/chat', d),
   aiTest: () => post('/ai/test'),
 
-  // Foto pengesahan kamar & log perbaikan
+  // Foto pengesahan kamar & perbaikan kamar
   handoverPhotos: (residentId) => get(`/residents/${residentId}/handover-photos`),
   addHandoverPhotos: (residentId, photos) => post(`/residents/${residentId}/handover-photos`, { photos }),
   deleteHandoverPhoto: (id) => del(`/handover-photos/${id}`),

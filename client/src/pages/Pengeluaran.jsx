@@ -51,7 +51,7 @@ export default function Pengeluaran({ version, onChange }) {
                   <td><div className="tn">{e.description}</div>{e.merchant && <div className="tm">{e.merchant}</div>}</td>
                   <td><span className="badge b-neu">{e.cat}</span></td>
                   <td style={{ fontWeight: 700, color: 'var(--err)' }}>{fmtRp(e.amount)}</td>
-                  <td>{e.source === 'scan' ? <span className="badge b-pebble">📷 Scan</span> : e.source === 'perbaikan' ? <span className="badge b-warn" title="Otomatis dari Log Perbaikan Kamar">🛠️ Perbaikan</span> : <span className="badge b-neu">Manual</span>}</td>
+                  <td>{e.source === 'scan' ? <span className="badge b-pebble">📷 Scan</span> : e.source === 'perbaikan' ? <span className="badge b-warn" title="Otomatis dari Perbaikan Kamar">🛠️ Perbaikan</span> : <span className="badge b-neu">Manual</span>}</td>
                   <td>{e.receiptPhoto ? <a className="btn btn-g btn-sm" href={fileUrl(e.receiptPhoto)} target="_blank" rel="noreferrer">📎 Lihat</a> : <span className="tm">—</span>}</td>
                   <td><button className="btn btn-g btn-sm" onClick={() => remove(e)} aria-label="Hapus">✕</button></td>
                 </tr>

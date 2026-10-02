@@ -181,9 +181,9 @@ pencatat), bisa ditambah susulan, dan dibuka dalam tampilan besar. Hanya **pemil
 bisa menghapus foto pengesahan. Saat **Proses Keluar**, foto ini ditampilkan untuk
 membandingkan kondisi kamar sebelum mengembalikan deposit. Foto hanya bisa dibuka staf.
 
-## Log perbaikan kamar
+## Perbaikan kamar
 
-Menu **Kamar** → detail kamar (**Riwayat Perbaikan**) atau kartu **Log Perbaikan Kamar**
+Menu **Kamar** → detail kamar (**Riwayat Perbaikan**) atau kartu **Perbaikan Kamar**
 (semua kamar, filter belum selesai / selesai, total biaya per tahun). Setiap catatan berisi
 masalah, kategori, keterangan, status (**Dilaporkan → Dikerjakan → Selesai**), tanggal lapor
 & selesai, biaya, tukang/vendor, serta foto **sebelum** dan **sesudah** (maks. 6 + 6).
@@ -191,10 +191,10 @@ masalah, kategori, keterangan, status (**Dilaporkan → Dikerjakan → Selesai**
 - **Kamar tidak bisa ditempati selama perbaikan** → kamar otomatis berstatus *Perbaikan* dan
   kembali *Kosong* setelah semua perbaikan yang memblokir selesai.
 - **Catat biaya ke Pengeluaran** → biaya masuk Pengeluaran (kategori *Perawatan*, label
-  🛠️ Perbaikan) dan ikut berubah bila biaya diubah; log yang dihapus ikut menghapus
-  pengeluarannya. Hanya pemilik yang bisa menghapus log.
+  🛠️ Perbaikan) dan ikut berubah bila biaya diubah; catatan yang dihapus ikut menghapus
+  pengeluarannya. Hanya pemilik yang bisa menghapus catatan perbaikan.
 - Penghuni kamar saat perbaikan dicatat ikut tersimpan. Catatan perbaikan lama (kolom
-  catatan kamar) otomatis dipindah ke log saat upgrade.
+  catatan kamar) otomatis dipindah ke riwayat perbaikan saat upgrade.
 - AI di menu Kamar menyorot perbaikan yang belum selesai dan kamar yang sering diperbaiki.
 
 ## Pindah kamar

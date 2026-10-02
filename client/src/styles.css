@@ -677,7 +677,7 @@ button.fac:hover { border-color: var(--jade); color: var(--jade-d); }
 .seg label.on { border-color: var(--jade); background: var(--jade-bg); color: var(--jade-d); }
 .seg-btn { padding: 8px 14px; border: 1.5px solid var(--bdr); border-radius: 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; background: var(--surf); color: var(--t2); min-height: 38px; }
 .seg-btn.on { border-color: var(--jade); background: var(--jade-bg); color: var(--jade-d); }
-/* Log perbaikan kamar */
+/* Perbaikan kamar */
 .rp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0 8px; flex-wrap: wrap; }
 .rp-list { display: grid; gap: 7px; }
 .rp-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }

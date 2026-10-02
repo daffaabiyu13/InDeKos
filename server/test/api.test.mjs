@@ -375,12 +375,12 @@ console.log('— Foto pengesahan kamar');
   ok((await call('GET', `/residents/${dinaId}/handover-photos`, null, A)).data.length === 2, 'daftar foto pengesahan per penghuni');
 }
 
-console.log('— Log perbaikan kamar');
+console.log('— Perbaikan kamar');
 {
   const TODAY = process.env.APP_TODAY;
   let rooms = (await call('GET', '/rooms', null, A)).data;
   const migrated = (await call('GET', '/repairs?room=116', null, A)).data;
-  ok(migrated.length === 1 && migrated[0].title === 'Perbaikan plafon bocor' && migrated[0].status === 'dikerjakan' && migrated[0].blockRoom, 'catatan perbaikan lama (kamar 116) dipindah ke log');
+  ok(migrated.length === 1 && migrated[0].title === 'Perbaikan plafon bocor' && migrated[0].status === 'dikerjakan' && migrated[0].blockRoom, 'catatan perbaikan lama (kamar 116) dipindah ke riwayat perbaikan');
   const empty = rooms.find((x) => x.status === 'av' && !x.reserved);
   const occ = rooms.find((x) => x.status === 'oc');
   ok((await call('POST', '/repairs', { room: empty.number }, A)).status === 400, 'tanpa masalah → ditolak');
@@ -422,8 +422,8 @@ console.log('— Log perbaikan kamar');
   ok((await call('GET', `/repairs?room=${empty.number}`, null, A)).data.length === 2, 'riwayat per kamar');
   const ins = (await call('GET', '/ai/insights?scope=kamar', null, A)).data.insights;
   ok(ins.some((i) => /perbaikan belum selesai/.test(i.title) && /Keran bocor/.test(i.text)) && ins.some((i) => /sering diperbaiki/.test(i.title) && new RegExp(empty.number).test(i.text)), 'AI kamar: perbaikan berjalan & kamar sering diperbaiki');
-  ok((await call('DELETE', `/repairs/${rep1.id}`, null, A)).status === 403, 'admin tidak bisa menghapus log');
-  ok((await call('DELETE', `/repairs/${rep1.id}`, null, P)).status === 200 && !(await call('GET', '/expenses', null, A)).data.some((e) => e.id === rep1.expenseId), 'pemilik menghapus log (pengeluaran terkait ikut terhapus)');
+  ok((await call('DELETE', `/repairs/${rep1.id}`, null, A)).status === 403, 'admin tidak bisa menghapus catatan perbaikan');
+  ok((await call('DELETE', `/repairs/${rep1.id}`, null, P)).status === 200 && !(await call('GET', '/expenses', null, A)).data.some((e) => e.id === rep1.expenseId), 'pemilik menghapus catatan perbaikan (pengeluaran terkait ikut terhapus)');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

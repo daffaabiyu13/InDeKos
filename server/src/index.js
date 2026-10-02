@@ -366,7 +366,7 @@ app.post('/api/residents/:id/handover-photos', h((req, res) => {
 }));
 app.delete('/api/handover-photos/:id', pemilik, h((req, res) => res.json(roomDocs.deleteHandoverPhoto(req.params.id))));
 
-// ── Log perbaikan kamar ──
+// ── Perbaikan kamar ──
 app.get('/api/repairs', h((req, res) => res.json(roomDocs.listRepairs({ room: req.query.room, status: req.query.status }))));
 app.get('/api/repairs/summary', h((_req, res) => res.json({ ...roomDocs.repairSummary(), categories: roomDocs.REPAIR_CATEGORIES })));
 app.post('/api/repairs', h((req, res) => res.status(201).json(roomDocs.createRepair(req.body || {}, req.user))));
